@@ -1,0 +1,45 @@
+# Core Web Scraping and HTTP
+playwright 
+requests
+beautifulsoup4
+urllib3 # For robust request handling
+
+# Data Processing and Analysis
+pandas
+python-dateutil
+jieba
+scikit-learn # For TF-IDF and keyword analysis (as mentioned in proposal)
+# spaCy # (Optional, for more advanced NLP tasks)
+
+# Document Parsing and Local File Handling
+pdfplumber
+python-docx
+odfpy
+python-pptx # For .pptx files
+Pillow # Image to PDF conversion support
+# Note: pytesseract is excluded as we transition to Cloud Vision API
+
+# Google Cloud Services (For future OCR and automation)
+google-cloud-vision # For Cloud Vision API OCR
+google-cloud-storage # For GCS file operations (required for batch PDF OCR)
+
+# Data I/O and Utilities
+openpyxl
+tqdm # Highly recommended for progress bars when processing 300+ files
+ 
+# Generative AI / Gemini (recommended for Gemini API Pro usage)
+# Note: `google-generativeai` is the official lightweight client for Google's
+# Generative Models (Gemini). `google-cloud-aiplatform` can be used for Vertex
+# AI / advanced model management and distributed workloads.
+google-generativeai
+google-genai
+google-cloud-aiplatform
+google-auth
+google-auth-oauthlib
+
+# Pydantic for schema validation used in tag processing
+pydantic
+
+# Optional helpers for LLM workflows
+# numpy
+# scipy

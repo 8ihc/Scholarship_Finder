@@ -1,0 +1,30 @@
+# 安全排除清單
+# 服務帳號金鑰 (請務必排除)
+service-account-key.json
+DO_NOT_UPLOAD_steady-dryad-478107-j9-cee216d247f2.json
+
+# 常見秘密與金鑰檔案 (建議)
+.env
+.env.*
+.envrc
+.secrets*
+secrets.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_dsa*
+credentials*.json
+token*.json
+
+# 其他常見的程式碼排除項 (可選)
+__pycache__/
+.venv/
+venv/
+*.pyc
+
+# 不要上傳大型原始附件
+data/raw/attachments/
+
+for me.txt
