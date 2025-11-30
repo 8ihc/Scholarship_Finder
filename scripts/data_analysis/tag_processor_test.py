@@ -8,18 +8,31 @@ from typing import List, Literal, Optional, Any
 # --- 1. 配置與初始化 ---
 MODEL_NAME = 'gemini-2.5-flash'
 
-# 確保您的 API 金鑰已設定在環境變數 GOOGLE_API_KEY 中
-try:
-    client = genai.Client()
-except Exception:
-    print("錯誤：無法初始化 Gemini Client。請確認 GOOGLE_API_KEY 環境變數或憑證設定正確。")
+# ！！！新的 Vertex AI 模式初始化 ！！！
+# 請替換為您的 GCP 專案 ID 和模型區域 (Region)
+PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+REGION = os.environ.get("GCP_REGION")  # 例如 "us-central1" 或 "asia-east1"
+
+if not PROJECT_ID or not REGION:
+    print("錯誤：PROJECT_ID 或 REGION 環境變數未設定。")
+    print("請設定 GCP_PROJECT_ID 和 GCP_REGION 變數後再執行。")
     exit()
+
+try:
+    client = genai.Client(
+        vertexai=True,           # 啟用 Vertex AI 模式
+        project=PROJECT_ID,
+        location=REGION
+    )
+except Exception:
+    print("錯誤：無法初始化 Vertex AI Client。請檢查 PROJECT_ID, REGION，以及 GOOGLE_APPLICATION_CREDENTIALS 環境變數是否正確設定。")
+    raise # 在無法連接時拋出錯誤，確保程序停止。
 
 
 # --- 2. 最終版 17 個類別定義 (用於 Pydantic Literal 限制) ---
 CATEGORIES = Literal[
     "學制相關", "年級相關", "學籍狀態", "領域/科系", "設籍地",
-    "就讀地", "特殊身份", "父母狀態",
+    "就讀地", "特殊身份", "家庭境遇",
     "經濟相關證明", "核心學業要求", "操行/品德", "特殊能力/專長",
     "補助/獎學金排斥", "領獎學金後的義務", "金額與名額", "應繳文件",
     "其他（用於無法歸類的特殊要求）"
@@ -29,20 +42,36 @@ CONDITION_TYPES = Literal["限於", "包含", "屬性"]
 
 # --- 3. Pydantic 巢狀結構定義 ---
 
+class NumericalAttributes(BaseModel):
+    """用於儲存核心學業要求、操行成績、獎學金金額、名額等可計算的數值資訊。"""
+    num_value: float = Field(description="核心數值 (例如：75, 20000, 3)。")
+    unit: Optional[str] = Field(None, description="單位 (例如：分, 元, 名)。")
+    # 針對成績的額外欄位
+    academic_scope: Optional[Literal["學期", "學年", "不適用"]] = Field(None, description="成績要求範圍：學期、學年。")
+    academic_metric: Optional[Literal["分數", "百分制", "GPA", "排名", "操行"]] = Field(None, description="評估標準或類型：分數、百分制、GPA、排名、操行。")
+
 class SubTag(BaseModel):
-    """描述單一的條件、限制或屬性，用於巢狀結構。"""
-    tag_category: CATEGORIES = Field(
-        description="標籤大類別 (17 個類別之一)。"
+    """描述單一的條件、限制或屬性，升級以支援結構化篩選。"""
+    tag_category: CATEGORIES = Field(description="標籤大類別。")
+    condition_type: CONDITION_TYPES = Field(description="條件類型：限於（限制）、包含（OR集合）、屬性（描述）。")
+    
+    # 原始文本 (給人類看)
+    tag_value: str = Field(description="從原文提取的完整描述，若資訊依賴於子條件(如金額隨學制變)，必須在內容中註明其依賴的條件。")
+    
+    # 關鍵新增：標準化值 (給勾選框用)
+    standardized_value: Optional[str] = Field(
+        None, 
+        description="將 tag_value 轉為標準化清單中選出的標準詞彙。若該類別尚未標準化 (如特殊能力)，則為 None。"
     )
-    condition_type: CONDITION_TYPES = Field(
-        description="條件類型：限於（限制）、包含（OR集合）、屬性（描述）。"
-    )
-    tag_value: str = Field(
-        description="從原文中準確提取並標準化具體條件，若資訊依賴於子條件(如金額隨學制變)，必須在內容中註明其依賴的條件。"
+    
+    # 關鍵新增：數值資料 (給排序/計算用)
+    numerical: Optional[NumericalAttributes] = Field(
+        None, 
+        description="若標籤包含分數、金額或名額，必須填寫此物件。"
     )
 
 class ScholarshipGroup(BaseModel):
-    """代表獎學金內的一個獨立申請組別或階段 (如：清寒組、優良成績組)。"""
+    """代表獎學金內的一個獨立申請組別或階段。"""
     group_name: str = Field(
         description="此組別或階段的名稱。如果獎學金只有一個組別，請命名為「通用組別」。"
     )
@@ -58,50 +87,40 @@ class FinalTagsStructure(BaseModel):
     )
     common_tags: List[SubTag] = Field(
         default_factory=list,
-        description="適用於整個獎學金的通用條件（例如：不得兼領其他扶輪社獎學金、截止日期等）。"
+        description="適用於整個獎學金的通用條件。"
     )
+
 
 # 最終用於 API 呼叫的 Schema (JSON Schema 格式)
 FINAL_SCHEMA_PYDANTIC = FinalTagsStructure.model_json_schema()
 
 
 # --- 4. Prompt ---
+COUNTY_LIST = "臺北市, 新北市, 基隆市, 桃園市, 臺中市, 臺南市, 高雄市, 宜蘭縣, 新竹縣, 苗栗縣, 彰化縣, 南投縣, 雲林縣, 嘉義縣, 屏東縣, 花蓮縣, 臺東縣, 澎湖縣, 金門縣, 連江縣"
+COLLEGE_LIST = "文學院, 理學院, 社會科學院, 醫學院, 工學院, 生物資源暨農學院, 管理學院, 公共衛生學院, 電機資訊學院, 法律學院, 生命科學院, 國際政經學院, 國際學院, 創新設計學院, 重點科技研究學院, 共同教育中心, 進修推廣學院"
+
 SYSTEM_PROMPT = f"""
 # 系統指令：專業獎學金標籤結構化引擎
 
-你的任務是擔任專業的獎學金篩選標籤提取器。請仔細閱讀提供的獎學金全文，並將所有提取的資訊轉換為 **巢狀 Pydantic JSON 結構**。
+你的任務是將獎學金文本轉換為結構化數據，以便支援前端網站的「勾選/篩選」和「數值排序」功能。請將數據分為三個層次：原始描述 (tag_value)、標準化勾選值 (standardized_value) 和數值 (numerical)。
 
 **核心目標：**
-1.  **分組：** 識別獎學金中的所有獨立申請組別。如果只有一個組別，請命名為「通用組別」。
-2.  **分類：** 將每個組別下的條件，準確歸類到 17 個 `tag_category` 之一。
-3.  **歸屬：** 將組別特有的條件放入該組的 `requirements` 列表內。
-4.  **通用：** 將適用於整個獎學金的通用條件放入 `common_tags` 列表內。
+1. **分組：** 識別獎學金中的所有獨立申請組別。如果只有一個組別，請命名為「通用組別」。
+2. **分類：** 將每個組別下的條件，準確歸類到 17 個 `tag_category` 之一。
+3. **結構化：** 將 tag_value 轉化為前端可用的數據：
+    * **標準化 (`standardized_value`)**：將條件映射到指定的標準選項清單（用於勾選）。
+    * **數值化 (`numerical`)**：將成績、金額、名額提取為可計算的數字結構（用於排序）。
+4. **歸屬：** 將組別特有的條件放入該組的 `requirements` 列表內。
+5. **通用：** 將適用於整個獎學金的通用條件放入 `common_tags` 列表內。
+
+---
 
 ## 標籤大類別 (tag_category)
 你必須且只能使用以下 17 個分類作為 "tag_category" 的值：
 {', '.join(CATEGORIES.__args__)}
 
 ---
-## 🔖 標籤內容參考定義（輔助標準化，但非絕對限制）
 
-請根據原文提取，若原文詞彙更具體，請提取原文。若原文內容與定義相符，則建議使用以下標準化描述：
-
-* **學制相關：** 大學、碩士、博士、在職專班、進修部、推廣教育
-* **年級相關：** 大一、大二、大三、大四、大四以上 (若有，註明上下學期)
-* **學籍狀態：** 在學生、延畢生、轉學生、休學生等
-* **領域/科系：** 必須提取原文中的 [領域] 或 [科系] 名稱
-* **設籍地：** 必須提取原文中的 [祖籍]、[縣市]、[區/鄉] 或 [村/里]
-* **就讀地：** 必須提取原文中的 [縣市] 或 [學校名稱]
-* **特殊身份：** 原住民、僑生、陸生、身心障礙等
-* **父母狀態：** [職業]、[單親] 等
-* **經濟相關證明：** 低收入戶證明、中低收入戶證明、村里長提供之清寒證明、導師提供之清寒證明、家庭突遭變故、國稅局家戶所得證明等
-* **核心學業要求：** 百分制或GPA、班級排名等
-* **操行/品德：** 操行成績、獎懲紀錄、經他人推薦之品德相關證明等
-* **特殊能力/專長：** 體育競賽、特殊專長、其他經驗
-* **補助/獎學金排斥：** 不得兼領、可兼領、可兼領但有額度上限
-* **領獎學金後的義務：** 須親自領獎、須配合服務/志工時數等
-
----
 ## 條件類型邏輯定義 (condition_type)
 你只能使用 **「限於」**、**「包含」** 或 **「屬性」**。請根據以下功能性定義，判斷每一項標籤應屬於哪一種類型。
 
@@ -115,13 +134,44 @@ SYSTEM_PROMPT = f"""
 **描述性特徵或義務 (Non-Eligibility)：** 適用於描述獎學金的量化資訊或申請人必須履行的義務等。
 
 ---
-## 具體內容提取與格式要求 (tag_value)
-提取具體內容時，必須遵守以下標準化要求：
 
-1.  **核心學業要求：** 必須註明是學期/學年、百分制/GPA，以及具體的數字。
-2.  **應繳文件：** 必須列出所有明確要求繳交的**實質性文件名稱**，排除流程性文件。
-3.  **金額與名額：** 必須註明具體數字和單位。**如果該資訊依賴於其他子條件，必須在 `tag_value` 中明確註明其依賴的條件** (例如：「5 名，每人 6,000 元 (限大學生)」、「10 名，每人 10,000 元 (限碩士生)」)。
-4.  **例外處理：** 無法歸類到 1-16 類的特殊要求，請使用 **第 17 類 (其他)**。
+## 1. 標準化映射規則 (填寫 standardized_value)
+若標籤屬於以下類別，必須從清單中選擇最接近的一個值填入 `standardized_value`。若無對應，填「其他」。
+
+* **學制相關：** 大學, 碩士, 博士, 在職專班, 進修部, 推廣教育, 其他
+* **年級相關：** 1, 2, 3, 4, 4以上
+* **學籍狀態：** 在學生, 延畢生, 轉學生, 休學生, 其他
+* **家庭境遇：** 單親, 父母雙亡, 家庭突遭變故, 其他
+* **設籍地/就讀地：** (填寫以下縣市之一) {COUNTY_LIST}
+    * **`tag_value`：** 必須提取原文中最精確的地理限制（區、鄉、里等），用於後端最終檢查。
+    * **`standardized_value`：** 僅填寫對應的**縣市名稱**，用於前端勾選。
+* **領域/科系：** **必須**從以下學院清單中選擇最相關的**學院名稱**填入：{COLLEGE_LIST}。
+* **特殊身份：** 原住民, 僑生, 陸生, 身心障礙, 其他
+* **經濟相關證明：** 低收入戶證明, 中低收入戶證明, 村里長提供之清寒證明, 導師提供之清寒證明, 國稅局家戶所得證明, 其他
+* **補助/獎學金排斥：** 不得兼領, 可兼領, 可兼領但有額度上限
+
+**本次運行排除標準化**
+* **特殊能力/專長 與 領獎學金後的義務：** 在本次運行中，請勿填寫 `standardized_value` 欄位。
+
+---
+
+## 2. 數值結構化規則 (填寫 numerical)
+若標籤包含分數、金額或名額，必須填寫 `numerical` 物件。
+
+* **核心學業要求 / 操行/品德：** 必須填寫 `academic_scope` (學期/學年)、`academic_metric` (分數/百分制/GPA/排名/操行) 和 `num_value`。
+* **金額與名額：** 必須將金額和名額分成**兩個獨立的標籤**，並在各自的 `numerical` 物件中填寫 `num_value` 和 `unit`。
+
+---
+
+## 3. 其他規則
+
+1.  **特定條件歸屬：** 任何**僅適用於特定組別**的條件，必須放在該組別的 `requirements` 內，**嚴禁**放入 `common_tags`。
+2.  **通用標籤排斥：** 如果某個條件已存在於 `common_tags` 中，則不得重複出現在任何 `groups` 內。
+3.  **複合條件拆分**： 嚴禁將多個可標準化的值合併在同一個 tag_value 中（例如：「低收或身障」需拆成兩個標籤;「家境清寒且父母雙亡」需拆成兩個標籤），以確保每個標籤都能對應單一的 standardized_value。
+4.  **應繳文件：** 必須列出所有明確要求繳交的**實質性文件名稱**。
+5.  **排除資訊：** 請**忽略並排除**申請/截止日期**資訊。
+6.  **例外處理：** 無法歸類到 1-16 類的特殊要求，請使用 **第 17 類 (其他)**。
+
 
 ## JSON 輸出格式 (Schema)
 你必須且只能輸出一個符合 `FinalTagsStructure` Pydantic 模型的 JSON 物件。
