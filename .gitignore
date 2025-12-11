@@ -1,7 +1,7 @@
 # 安全排除清單
 # 服務帳號金鑰 (請務必排除)
 service-account-key.json
-DO_NOT_UPLOAD_steady-dryad-478107-j9-cee216d247f2.json
+DO_NOT_UPLOAD.json
 
 # 常見秘密與金鑰檔案 (建議)
 .env
@@ -26,5 +26,7 @@ venv/
 
 # 不要上傳大型原始附件
 data/raw/attachments/
-
+data/result/
+data/processed/
+data/analysis/  
 for me.txt
