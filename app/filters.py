@@ -1,4 +1,6 @@
 from typing import List, Dict
+from utils import get_min_amount_and_quota
+
 
 def extract_tags_from_group(group: Dict, category: str) -> List[str]:
     values = []
@@ -124,7 +126,6 @@ def check_scholarship_match(scholarship: Dict, filters: Dict) -> bool:
             return True
     return False
 
-from utils import get_min_amount_and_quota
 
 #--- 獎助金額與名額過濾器 ---
 def scholarship_amount_quota_filter(scholarship, amount_range, quota_range):
