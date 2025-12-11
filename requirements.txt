@@ -3,6 +3,7 @@ playwright
 requests
 beautifulsoup4
 urllib3 # For robust request handling
+streamlit
 
 # Data Processing and Analysis
 pandas

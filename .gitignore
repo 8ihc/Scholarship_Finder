@@ -25,8 +25,18 @@ venv/
 *.pyc
 
 # 不要上傳大型原始附件
-data/raw/attachments/
+data/raw
+
+# 不要上傳大型處理後附件
 data/result/
 data/processed/
-data/analysis/  
+data/analysis/
+
 for me.txt
+
+
+app_01.py
+
+instructions.md
+project_structure.md
+SCRAPER_USAGE.md
