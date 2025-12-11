@@ -1,0 +1,322 @@
+/* ==================== 全域背景與字體 ==================== */
+.stApp,
+.main,
+header[data-testid="stHeader"],
+[data-testid="stToolbar"] {
+    background-color: #F2F2EC !important;
+}
+
+body,
+p,
+span,
+div,
+label,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.stMarkdown,
+.stMarkdown * {
+    color: #594C3B !important;
+}
+
+h1 {
+    font-size: 4rem;
+    color: #594C3B !important;
+    border-bottom: 3px solid #D9B91A;
+    padding-bottom: 10px;
+}
+
+h3,
+.element-container h3,
+.element-container h4 {
+    color: #594C3B !important;
+}
+
+/* ==================== Sidebar ==================== */
+[data-testid="stSidebar"] {
+    background-color: #F1F2EF;
+    border-right: none;
+    box-shadow: 2px 0 8px rgba(89, 76, 59, 0.1);
+}
+
+[data-testid="stSidebar"] * {
+    color: #594C3B !important;
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    font-weight: bold;
+}
+
+[data-testid="stSidebar"] label {
+    font-weight: 500;
+}
+
+[data-testid="stSidebar"] [data-baseweb="select"],
+[data-testid="stSidebar"] [data-baseweb="input"],
+[data-testid="stSidebar"] input {
+    background-color: #E3E2DE !important;
+    border: none !important;
+    color: #594C3B !important;
+}
+
+[data-testid="stSidebar"] [data-baseweb="select"]>div,
+[data-testid="stSidebar"] [data-baseweb="input"]>div {
+    background-color: #E3E2DE !important;
+    border: none !important;
+    color: #594C3B !important;
+}
+
+[data-testid="stSidebar"] input[type="text"] {
+    color: #594C3B !important;
+    -webkit-text-fill-color: #594C3B !important;
+    caret-color: black !important;
+}
+
+[data-testid="stSidebar"] input::placeholder {
+    color: #8B7E6F !important;
+    opacity: 0.7;
+}
+
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] [data-baseweb="select"] span,
+[data-testid="stSidebar"] [data-baseweb="input"] span {
+    color: #594C3B !important;
+    caret-color: black !important;
+}
+
+[data-testid="stSidebar"] [data-baseweb="tag"] {
+    background-color: #D9B91A !important;
+    color: #594C3B !important;
+}
+
+[data-testid="stSidebar"] [data-baseweb="tag"] span {
+    color: #594C3B !important;
+}
+
+[data-testid="stSidebar"] [data-baseweb="select"]:focus,
+[data-testid="stSidebar"] [data-baseweb="input"]:focus,
+[data-testid="stSidebar"] input:focus {
+    border: none !important;
+    outline: none !important;
+}
+
+/* Sidebar checkbox 樣式 - 更精確的選擇器 */
+[data-testid="stSidebar"] [data-testid="stCheckbox"] span[class*="st-"][class*="st-e"] {
+    background-color: transparent !important;
+    border: 2px solid #594C3B !important;
+}
+
+/* Sidebar checkbox 樣式 */
+[data-testid="stSidebar"] [data-testid="stCheckbox"] span[class*="st-"][class*="st-e"] {
+    background-color: #D9B91A !important;
+    border-color: #D9B91A !important;
+}
+
+/* 未勾選時 */
+[data-testid="stSidebar"] [data-testid="stCheckbox"] input[type="checkbox"]:not(:checked)+div span {
+    background-color: transparent !important;
+    border: 2px solid #D9B91A !important;
+}
+
+/* 勾選時 */
+[data-testid="stSidebar"] [data-testid="stCheckbox"] input[type="checkbox"]:checked+div span {
+    background-color: #D9B91A !important;
+    border-color: #D9B91A !important;
+}
+
+/* ==================== Popover ==================== */
+[data-baseweb="popover"],
+[data-baseweb="popover"] ul,
+[data-baseweb="popover"] li {
+    background-color: white !important;
+    color: #594C3B !important;
+}
+
+[data-baseweb="popover"] li:hover {
+    background-color: #E3E2DE !important;
+}
+
+/* ==================== Expander ==================== */
+[data-testid="stExpander"] {
+    background-color: white;
+    border: none;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+[data-testid="stExpander"] summary {
+    background-color: rgba(217, 185, 26, 0.85);
+    color: #594C3B !important;
+    font-weight: bold;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+[data-testid="stExpander"] p,
+[data-testid="stExpander"] span,
+[data-testid="stExpander"] div {
+    color: #594C3B !important;
+}
+
+[data-testid="stExpander"] summary:hover {
+    background-color: #D9A918;
+}
+
+/* ==================== DataFrame ==================== */
+[data-testid="stDataFrame"] {
+    border: none;
+}
+
+[data-testid="stDataFrame"]>div,
+[data-testid="stDataFrame"] table,
+[data-testid="stDataFrame"] thead th,
+[data-testid="stDataFrame"] tbody tr,
+[data-testid="stDataFrame"] tbody td,
+[data-testid="stDataFrame"] [role="gridcell"],
+[data-testid="stDataFrame"] [role="columnheader"] {
+    background-color: #F1F2EF !important;
+    color: #594C3B !important;
+}
+
+[data-testid="stDataFrame"] thead th {
+    font-weight: bold;
+}
+
+[data-testid="stDataFrame"] tbody tr:hover {
+    background-color: #E3E2DE !important;
+}
+
+/* ==================== Info/Warning ==================== */
+.stInfo {
+    background-color: #F2F2EC;
+    border-left: none;
+}
+
+.stWarning {
+    background-color: #FFF9E6;
+    border-left: none;
+}
+
+/* ==================== Button/Link ==================== */
+.stButton>button {
+    background-color: #F2F2EC;
+    color: #F2F2EC !important;
+    border: none;
+    padding: 0.5rem 0.5rem;
+    font-weight: 600;
+    min-width: 120px;
+    /* 讓排序按鈕本身變寬 */
+    padding-left: 1.2rem;
+    padding-right: 1.2rem;
+}
+
+.stButton {
+    margin-right: 0.2rem;
+}
+
+div[data-testid="column"]>div>.stButton {
+    margin-left: 0.3rem;
+    margin-right: 0.3rem;
+}
+
+.stButton>button:hover {
+    background-color: white;
+    color: white !important;
+}
+
+.stLinkButton>a {
+    background-color: #D9B91A;
+    color: #594C3B !important;
+    border: none;
+    border-radius: 5px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.stLinkButton>a:hover {
+    background-color: #D9A918;
+    color: #594C3B !important;
+}
+
+/* ==================== Checkbox/Metric ==================== */
+[data-testid="stCheckbox"] label,
+[data-testid="stMetricValue"] {
+    color: white !important;
+}
+
+
+/* ==================== Custom Tooltip ==================== */
+.custom-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.custom-tooltip-value {
+    border-bottom: 2.5px dotted #D9B91A;
+    cursor: help;
+    color: #5B7329;
+    font-size: 1rem;
+    padding: 0 2px;
+}
+
+.custom-tooltip-text {
+    visibility: hidden;
+    min-width: 200px;
+    max-width: 350px;
+    background: #D9B91A;
+    color: #594C3B;
+    text-align: left;
+    border-radius: 10px;
+    padding: 14px 22px;
+    position: absolute;
+    z-index: 9999;
+    bottom: 130%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1rem;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(89, 76, 59, 0.12);
+    opacity: 0;
+    transition: opacity 0.18s;
+    pointer-events: none;
+    white-space: pre-line;
+}
+
+.custom-tooltip:hover .custom-tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ==================== Dialog (Modal) ==================== */
+div[role="dialog"] {
+    background-color: #F2F2EC !important;
+    color: #594C3B !important;
+    border-radius: 12px;
+    border: 2px solid #D9B91A;
+}
+
+div[role="dialog"] h1,
+div[role="dialog"] h2,
+div[role="dialog"] h3,
+div[role="dialog"] p,
+div[role="dialog"] li {
+    color: #594C3B !important;
+}
+
+div[role="dialog"] button {
+    background-color: #D9B91A !important;
+    color: #594C3B !important;
+    border: none !important;
+}
+
+div[role="dialog"] button:hover {
+    background-color: #D9A918 !important;
+    color: #594C3B !important;
+}

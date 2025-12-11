@@ -3,405 +3,67 @@ import html
 import streamlit as st
 import pandas as pd
 from data_loader import load_scholarships
-from filters import check_scholarship_match
-from ui_components import get_requirements_df, extract_documents_from_group, extract_obligations_from_group
-from constants import FILTER_OPTIONS
-from utils import extract_numeric_info_from_tags
+from filters import check_scholarship_match, scholarship_amount_quota_filter, check_undetermined_amount
+from ui_components import extract_documents_from_group, extract_obligations_from_group, toggle_sort, get_sort_label, create_tooltip_html, render_requirements_grid
+from constants import FILTER_OPTIONS, EXCHANGE_RATES
+from utils import extract_numeric_info_from_tags, get_min_amount_and_quota, get_end_date, format_number
 
 st.set_page_config(
     page_title="NTU Scholarship Finder",
     layout="wide"
 )
 
-# ==================== Custom CSS Styling ====================
-st.markdown("""
-<style>
-/* ==================== 全域背景與字體 ==================== */
-.stApp, .main, header[data-testid="stHeader"], [data-testid="stToolbar"] {
-    background-color: #F2F2EC !important;
-}
-body, p, span, div, label, h1, h2, h3, h4, h5, h6, .stMarkdown, .stMarkdown * {
-    color: #594C3B !important;
-}
-h1 {
-    font-size: 4rem;
-    color: #594C3B !important;
-    border-bottom: 3px solid #D9B91A;
-    padding-bottom: 10px;
-}
-h3, .element-container h3, .element-container h4 {
-    color: #594C3B !important;
-}
+def load_css(file_name):
+    with open(file_name, encoding='utf-8') as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-/* ==================== Sidebar ==================== */
-[data-testid="stSidebar"] {
-    background-color: #F1F2EF;
-    border-right: none;
-    box-shadow: 2px 0 8px rgba(89, 76, 59, 0.1);
-}
-[data-testid="stSidebar"] * {
-    color: #594C3B !important;
-}
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 {
-    font-weight: bold;
-}
-[data-testid="stSidebar"] label {
-    font-weight: 500;
-}
-[data-testid="stSidebar"] [data-baseweb="select"],
-[data-testid="stSidebar"] [data-baseweb="input"],
-[data-testid="stSidebar"] input {
-    background-color: #E3E2DE !important;
-    border: none !important;
-    color: #594C3B !important;
-}
-[data-testid="stSidebar"] [data-baseweb="select"] > div,
-[data-testid="stSidebar"] [data-baseweb="input"] > div {
-    background-color: #E3E2DE !important;
-    border: none !important;
-    color: #594C3B !important;
-}
-[data-testid="stSidebar"] input[type="text"] {
-    color: #594C3B !important;
-    -webkit-text-fill-color: #594C3B !important;
-}
-[data-testid="stSidebar"] input::placeholder {
-    color: #8B7E6F !important;
-    opacity: 0.7;
-}
-[data-testid="stSidebar"] input,
-[data-testid="stSidebar"] [data-baseweb="select"] span,
-[data-testid="stSidebar"] [data-baseweb="input"] span {
-    color: #594C3B !important;
-}
-[data-testid="stSidebar"] [data-baseweb="tag"] {
-    background-color: #D9B91A !important;
-    color: #594C3B !important;
-}
-[data-testid="stSidebar"] [data-baseweb="tag"] span {
-    color: #594C3B !important;
-}
-[data-testid="stSidebar"] [data-baseweb="select"]:focus,
-[data-testid="stSidebar"] [data-baseweb="input"]:focus,
-[data-testid="stSidebar"] input:focus {
-    border: none !important;
-    outline: none !important;
-}
-
-/* ==================== Popover ==================== */
-[data-baseweb="popover"],
-[data-baseweb="popover"] ul,
-[data-baseweb="popover"] li {
-    background-color: white !important;
-    color: #594C3B !important;
-}
-[data-baseweb="popover"] li:hover {
-    background-color: #E3E2DE !important;
-}
-
-/* ==================== Expander ==================== */
-[data-testid="stExpander"] {
-    background-color: white;
-    border: none;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-}
-[data-testid="stExpander"] summary {
-    background-color: rgba(217,185,26,0.85);
-    color: #594C3B !important;
-    font-weight: bold;
-    padding: 0.5rem;
-    border-radius: 4px;
-}
-[data-testid="stExpander"] p,
-[data-testid="stExpander"] span,
-[data-testid="stExpander"] div {
-    color: #594C3B !important;
-}
-[data-testid="stExpander"] summary:hover {
-    background-color: #D9A918;
-}
-
-/* ==================== DataFrame ==================== */
-[data-testid="stDataFrame"] {
-    border: none;
-}
-[data-testid="stDataFrame"] > div,
-[data-testid="stDataFrame"] table,
-[data-testid="stDataFrame"] thead th,
-[data-testid="stDataFrame"] tbody tr,
-[data-testid="stDataFrame"] tbody td,
-[data-testid="stDataFrame"] [role="gridcell"],
-[data-testid="stDataFrame"] [role="columnheader"] {
-    background-color: #F1F2EF !important;
-    color: #594C3B !important;
-}
-[data-testid="stDataFrame"] thead th {
-    font-weight: bold;
-}
-[data-testid="stDataFrame"] tbody tr:hover {
-    background-color: #E3E2DE !important;
-}
-
-/* ==================== Info/Warning ==================== */
-.stInfo {
-    background-color: #F2F2EC;
-    border-left: none;
-}
-.stWarning {
-    background-color: #FFF9E6;
-    border-left: none;
-}
-
-/* ==================== Button/Link ==================== */
-.stButton > button {
-    background-color: #F2F2EC;
-    color: #F2F2EC !important;
-    border: none;
-    padding: 0.5rem 0.5rem;
-    font-weight: 600;
-    min-width: 120px; /* 讓排序按鈕本身變寬 */
-    padding-left: 1.2rem;
-    padding-right: 1.2rem;
-}
-.stButton { margin-right: 0.2rem; }
-div[data-testid="column"] > div > .stButton { margin-left: 0.3rem; margin-right: 0.3rem; }
-
-.stButton > button:hover {
-    background-color: white ;
-    color: white !important;
-}
-.stLinkButton > a {
-    background-color: #D9B91A;
-    color: #594C3B !important;
-    border: none;
-    border-radius: 5px;
-    padding: 0.5rem 1rem;
-    font-weight: 500;
-    text-decoration: none;
-}
-.stLinkButton > a:hover {
-    background-color: #D9A918;
-    color: #594C3B !important;
-}
-
-/* ==================== Checkbox/Metric ==================== */
-[data-testid="stCheckbox"] label,
-[data-testid="stMetricValue"] {
-    color: #594C3B !important;
-}
-
-/* ==================== Custom Tooltip ==================== */
-.custom-tooltip { position: relative; display: inline-block; }
-.custom-tooltip-value {
-    border-bottom: 2.5px dotted #D9B91A;
-    cursor: help;
-    color: #5B7329;
-    font-size: 1rem;
-    padding: 0 2px;
-}
-.custom-tooltip-text {
-    visibility: hidden;
-    min-width: 200px;
-    max-width: 350px;
-    background: #D9B91A;
-    color: #594C3B;
-    text-align: left;
-    border-radius: 10px;
-    padding: 14px 22px;
-    position: absolute;
-    z-index: 9999;
-    bottom: 130%;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 1rem;
-    font-weight: 500;
-    box-shadow: 0 4px 16px rgba(89,76,59,0.12);
-    opacity: 0;
-    transition: opacity 0.18s;
-    pointer-events: none;
-    white-space: pre-line;
-}
-.custom-tooltip:hover .custom-tooltip-text {
-    visibility: visible;
-    opacity: 1;
-    pointer-events: auto;
-}
-</style>
-""", unsafe_allow_html=True)
+load_css("app/styles.css")
 
 # ==================== Helper Functions ====================
 
 #--- 獎助金額與名額過濾器 ---
-def scholarship_amount_quota_filter(scholarship, amount_range, quota_range):
-        min_amount, min_quota = get_min_amount_and_quota(scholarship)
-        if min_amount is None:
-            min_amount = 0
-        if min_quota is None:
-            min_quota = 1
-        return (amount_range[0] <= min_amount <= amount_range[1]) and (quota_range[0] <= min_quota <= quota_range[1])
+# Moved to filters.py
 
 #--- 提取最小金額與名額函式 ---
-def get_min_amount_and_quota(scholarship):
-    min_amount = None
-    min_quota = None
-    tags = scholarship.get("tags", {})
-    for req in tags.get("common_tags", []):
-        if req.get("tag_category") == "獎助金額":
-            numerical = req.get("numerical")
-            if numerical and numerical.get("num_value") is not None:
-                val = numerical.get("num_value")
-                if min_amount is None or val < min_amount:
-                    min_amount = val
-        if req.get("tag_category") == "獎助名額":
-            numerical = req.get("numerical")
-            if numerical and numerical.get("num_value") is not None:
-                val = numerical.get("num_value")
-                if min_quota is None or val < min_quota:
-                    min_quota = val
-    for group in tags.get("groups", []):
-        for req in group.get("requirements", []):
-            if req.get("tag_category") == "獎助金額":
-                numerical = req.get("numerical")
-                if numerical and numerical.get("num_value") is not None:
-                    val = numerical.get("num_value")
-                    if min_amount is None or val < min_amount:
-                        min_amount = val
-            if req.get("tag_category") == "獎助名額":
-                numerical = req.get("numerical")
-                if numerical and numerical.get("num_value") is not None:
-                    val = numerical.get("num_value")
-                    if min_quota is None or val < min_quota:
-                        min_quota = val
-    return min_amount, min_quota
+# Moved to utils.py
 
 #--- 提取結束日期函式 ---
-def get_end_date(scholarship):
-    date_str = scholarship.get("end_date", "")
-    if not date_str:
-        return None
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
-        try:
-            import datetime
-            return datetime.datetime.strptime(date_str, fmt)
-        except Exception:
-            continue
-    return None
-
-#--- 排序按鈕相關函式 ---
-def toggle_sort(key):
-        if st.session_state['sort_by'] == key:
-            st.session_state['sort_order'] = 'asc' if st.session_state['sort_order'] == 'desc' else 'desc'
-        else:
-            st.session_state['sort_by'] = key
-            if key == 'end_date':
-                st.session_state['sort_order'] = 'asc'
-            else:
-                st.session_state['sort_order'] = 'desc'
-
-#--- 排序按鈕標籤函式 ---
-def get_sort_label(label, key):
-    if st.session_state['sort_by'] == key:
-        arrow = "▼" if st.session_state['sort_order'] == 'desc' else "▲"
-        return f"{label} {arrow}"
-    return label
+# Moved to utils.py
 
 #--- 格式化數字函式 ---
-def format_number(val, tag_category=None):
-    # GPA 例外，其他都取整數
-    if tag_category and ("GPA" in tag_category or "平均" in tag_category):
-        return val
-    try:
-        # 若是數字字串也能處理
-        return str(int(round(float(val))))
-    except Exception:
-        return val
+# Moved to utils.py
 
 # --- 生成 Tooltip HTML ---
-def create_tooltip_html(display_text, raw_texts):
-    # 過濾空值並去重
-    valid_texts = [t for t in raw_texts if t]
-    # 如果沒有詳細內容，直接回傳顯示文字
-    if not valid_texts:
-        return display_text
-    
-    # 將所有原始說明文字用換行符號接起來，並做 HTML Escape 安全處理
-    # 使用 sorted(list(set(...))) 是為了去除完全重複的說明並排序
-    unique_texts = sorted(list(set(valid_texts)))
-    tooltip_content = "<br>".join([html.escape(t) for t in unique_texts])
-    
-    return f"""
-    <span class='custom-tooltip'>
-        <span class='custom-tooltip-value'>{display_text}</span>
-        <span class='custom-tooltip-text'>{tooltip_content}</span>
-    </span>
-    """
+# Moved to ui_components.py
 
 # --- 核心渲染函式 (負責分組與畫圖) ---
-def render_requirements_grid(requirements_list):
-    if not requirements_list:
-        return
-
-    # 1. 分組邏輯：將相同「類別」且相同「條件類型」的歸類在一起
-    # Key: (類別名稱, 條件類型)
-    # Value: [req1, req2, ...] (條件物件的列表)
-    grouped_data = defaultdict(list)
-    
-    for req in requirements_list:
-        cat = req.get("tag_category", "其他")
-        cond = req.get("condition_type", "")
-        grouped_data[(cat, cond)].append(req)
-
-    # 2. 畫圖邏輯
-    cols = st.columns(3)
-    # 將 dict 轉為 list 以便 enumerate
-    grouped_items = list(grouped_data.items())
-    
-    for i, ((category, condition_type), req_group) in enumerate(grouped_items):
-        col = cols[i % 3]
-        
-        display_values = set()  # 用 set 來自動去除重複的顯示文字 (例如: "其他", "其他" -> "其他")
-        tooltip_texts = []      # 收集所有原始說明文字
-        
-        for req in req_group:
-            # 收集 Tooltip 文字
-            raw_text = req.get("tag_value", "")
-            if raw_text:
-                tooltip_texts.append(raw_text)
-            
-            # 決定卡片上的顯示文字
-            val = req.get("standardized_value")
-            numerical = req.get("numerical")
-            
-            d_text = ""
-            if val and val != "—":
-                d_text = format_number(val, category)
-            elif numerical and numerical.get("num_value") is not None:
-                unit = numerical.get("unit", "")
-                d_text = f"{format_number(numerical.get('num_value'), category)}{unit}"
-            else:
-                d_text = raw_text
-            
-            if d_text:
-                display_values.add(d_text)
-        
-        # 3. 組合最終結果
-        # 如果集合中有多個不同的值 (例如: "英文", "日文")，用頓號連接
-        final_display_str = "、".join(sorted(list(display_values)))
-        if not final_display_str:
-            final_display_str = "詳見說明" # 防止空白
-            
-        # 生成帶有 Tooltip 的 HTML
-        final_html = create_tooltip_html(final_display_str, tooltip_texts)
-        
-        # 處理標題
-        cat_label = category + ("（可選/多選一）" if condition_type == '包含' else "")
-        col.markdown(f"<b>{cat_label}</b><br>{final_html}", unsafe_allow_html=True)
+# Moved to ui_components.py
 
 # ==================== Streamlit App ====================
+@st.dialog("歡迎使用 NTU Scholarship Finder 👋")
+def show_welcome_dialog():
+    st.markdown("""
+    ### 💡 聰明篩選，不錯過任何機會
+    
+    本系統採用 **「身分資格導向」** 的篩選機制，協助您找到所有符合資格的獎學金。
+    
+    **舉例來說：**
+    如果您在側邊欄選擇 **「社會科學院」**，系統將會為您列出：
+    1. ✅ 限定 **「社會科學院」** 的獎學金
+    2. ✅ **「不限學院」** 的全校通用獎學金
+    
+    這樣設計是為了確保您 **不會因為篩選了學院，而錯失了全校皆可申請的機會**！
+    
+    請放心選擇您的資格與條件，系統會自動幫您過濾出所有您能申請的項目。
+    """)
+    if st.button("我瞭解了，開始使用", type="primary", use_container_width=True):
+        st.session_state['has_seen_welcome'] = True
+        st.rerun()
+
 def main():
+    if 'has_seen_welcome' not in st.session_state:
+        show_welcome_dialog()
+
     st.markdown("""
         <h1 style='font-size:4rem; color:#594C3B; border-bottom:3px solid #D9B91A; padding-bottom:10px;'>NTU Scholarship Finder</h1>
     """, unsafe_allow_html=True)
@@ -409,73 +71,83 @@ def main():
     scholarships = load_scholarships()
     st.sidebar.header("篩選條件")
     filters = {}
-    filters["keyword"] = st.sidebar.text_input("", placeholder="輸入欲查詢之關鍵字")
-    st.sidebar.markdown("---")
-    filters["獎助金額"] = st.sidebar.slider("獎助金額 (元)", min_value=0, max_value=100000, value=(0, 100000), step=1000)
-    filters["獎助名額"] = st.sidebar.slider("獎助名額 (人)", min_value=0, max_value=100, value=(0, 100), step=1)
-    filters["補助/獎學金排斥"] = st.sidebar.multiselect(
-        "補助/獎學金排斥",
-        options=FILTER_OPTIONS["補助/獎學金排斥"]
-    )
-    st.sidebar.markdown("---")
+    filters["keyword"] = st.sidebar.text_input("關鍵字搜尋", placeholder="輸入欲查詢之關鍵字", key="sidebar_keyword")
+    filters["only_undetermined_amount"] = st.sidebar.checkbox("只顯示「金額未定」", value=False)
+    
+    st.sidebar.markdown("### 學業資格")
     filters["學制"] = st.sidebar.multiselect(
         "學制",
         options=FILTER_OPTIONS["學制"],
-        default=["大學"]
+        key="filter_degree"
     )
+    grade_map = {"1": "一", "2": "二", "3": "三", "4": "四", "4以上": "四年級以上"}
     filters["年級"] = st.sidebar.multiselect(
         "年級",
-        options=FILTER_OPTIONS["年級"]
+        options=FILTER_OPTIONS["年級"],
+        format_func=lambda x: grade_map.get(x, x),
+        key="filter_grade"
     )
     filters["學籍狀態"] = st.sidebar.multiselect(
         "學籍狀態",
-        options=FILTER_OPTIONS["學籍狀態"]
+        options=FILTER_OPTIONS["學籍狀態"],
+        key="filter_status"
     )
     filters["學院"] = st.sidebar.multiselect(
         "學院",
-        options=FILTER_OPTIONS["學院"]
+        options=FILTER_OPTIONS["學院"],
+        key="filter_college"
     )
+    
+
+    st.sidebar.markdown("### 國籍與地區")
     filters["國籍身分"] = st.sidebar.multiselect(
         "國籍身分",
         options=FILTER_OPTIONS["國籍身分"],
-        default=["本國籍"]
+        key="filter_nationality"
     )
     filters["設籍地"] = st.sidebar.multiselect(
         "設籍地",
-        options=FILTER_OPTIONS["設籍地"]
+        options=FILTER_OPTIONS["設籍地"],
+        key="filter_domicile"
     )
     filters["就讀地"] = st.sidebar.multiselect(
         "就讀地",
-        options=FILTER_OPTIONS["就讀地"]
+        options=FILTER_OPTIONS["就讀地"],
+        key="filter_study_loc"
     )
-    filters["特殊身份"] = st.sidebar.multiselect(
-        "特殊身份",
-        options=FILTER_OPTIONS["特殊身份"]
+
+    st.sidebar.markdown("### 身分與特殊境遇")
+    filters["經濟相關證明"] = st.sidebar.multiselect(
+        "經濟相關證明",
+        options=FILTER_OPTIONS["經濟相關證明"],
+        key="filter_economic"
     )
     filters["家庭境遇"] = st.sidebar.multiselect(
         "家庭境遇",
-        options=FILTER_OPTIONS["家庭境遇"]
+        options=FILTER_OPTIONS["家庭境遇"],
+        key="filter_family"
     )
-    filters["經濟相關證明"] = st.sidebar.multiselect(
-        "經濟相關證明",
-        options=FILTER_OPTIONS["經濟相關證明"]
-    )
-    filters["核心學業要求"] = st.sidebar.slider("核心學業要求 (分)", min_value=0, max_value=100, value=(0, 100), step=1)
-    filters["操行(分數)"] = st.sidebar.slider("操行 (分)", min_value=0, max_value=100, value=(0, 100), step=1)
-    filters["操行/品德"] = st.sidebar.multiselect(
-        "操行/品德（獎懲紀錄）",
-        options=FILTER_OPTIONS["操行/品德"]
+    filters["特殊身份"] = st.sidebar.multiselect(
+        "特殊身份",
+        options=FILTER_OPTIONS["特殊身份"],
+        key="filter_special"
     )
 
+    st.sidebar.markdown("### 其他限制")
+    filters["補助/獎學金排斥"] = st.sidebar.multiselect("補助/獎學金排斥", FILTER_OPTIONS["補助/獎學金排斥"], key="filter_exclusion")
+
+    # ==================== Filter Logic ====================
     
+    # check_undetermined_amount moved to filters.py
+
     filtered_scholarships = [
         s for s in scholarships
-        if scholarship_amount_quota_filter(s, filters["獎助金額"], filters["獎助名額"]) and check_scholarship_match(s, filters)
+        if check_scholarship_match(s, filters) and (not filters.get("only_undetermined_amount") or check_undetermined_amount(s))
     ]
 
     # --- Custom Sort Buttons ---
     # ======= 結果數與排序按鈕同列 =======
-    sort_cols = st.columns([5,1,1,1,0.2])
+    sort_cols = st.columns([6,1,1,0.2])
     with sort_cols[0]:
         st.markdown(
             f"""
@@ -497,10 +169,6 @@ def main():
             toggle_sort('amount')
             st.rerun()
     with sort_cols[2]:
-        if st.button(get_sort_label("名額", 'quota'), key='sort_quota'):
-            toggle_sort('quota')
-            st.rerun()
-    with sort_cols[3]:
         if st.button(get_sort_label("截止日期", 'end_date'), key='sort_enddate'):
             toggle_sort('end_date')
             st.rerun()
@@ -569,6 +237,9 @@ def main():
                 amounts = [] # 格式將變為: [(5000, "清寒組每名五千"), (10000, "優秀組每名一萬")]                quotas = []
                 quotas = []  # 格式將變為: [(10, "每組十名"), (5, "特殊名額五名")]
 
+                # Debug: 顯示 scholarship ID 和 requirements 數量
+                # st.write(f"Debug: ID={scholarship.get('id')}, Groups={len(groups)}, Common={len(common_tags)}")
+
                 # 1. 建立一個包含所有 requirements 的大列表
                 all_requirements = []
                 # 加入通用條件
@@ -585,8 +256,9 @@ def main():
                     # 必須使用安全取值 (or {}) 來防止 NoneType Error
                     numerical_data = req.get("numerical") or {}
                     num_val = numerical_data.get("num_value")
-                    
-                    # 如果 numerical 沒值，嘗試從 standardized_value 補救 (雖然您的新結構都有 numerical，但防呆總是好的)
+                    unit = numerical_data.get("unit", "")
+
+                    # 如果 numerical 沒值，嘗試從 standardized_value 補救
                     if num_val is None:
                         std_val = req.get("standardized_value")
                         if std_val and str(std_val).replace(",", "").replace(".", "").isdigit():
@@ -599,29 +271,26 @@ def main():
                     if num_val is not None:
                         # 判斷金額
                         if cat == "獎助金額":
-                            amounts.append((float(num_val), raw_text))
+                            # 匯率換算
+                            if unit:
+                                unit_clean = unit.strip().upper()
+                                rate = EXCHANGE_RATES.get(unit_clean)
+                                if not rate:
+                                    for key, r in EXCHANGE_RATES.items():
+                                        if key in unit_clean:
+                                            rate = r
+                                            break
+                                if rate:
+                                    num_val = num_val * rate
+                            
+                            if float(num_val) > 0:
+                                amounts.append((float(num_val), raw_text))
                         # 判斷名額
                         elif cat == "獎助名額":
                             quotas.append((int(float(num_val)), raw_text))
 
                 # === 輔助函式：用來生成帶有 Tooltip 的 HTML ===
-                def create_tooltip_html(display_text, raw_texts):
-                    # 過濾掉空字串並去重，然後用換行符號連接
-                    valid_texts = [t for t in raw_texts if t]
-                    unique_texts = sorted(list(set(valid_texts))) # 去重並排序讓顯示整齊
-                    
-                    if not unique_texts:
-                        return display_text # 如果沒有詳細說明，就直接回傳文字
-                        
-                    # 組合 Tooltip 內容 (用 <br> 換行，並做 escape 防止 HTML 錯誤)
-                    tooltip_content = "<br>".join([html.escape(t) for t in unique_texts])
-                    
-                    return f"""
-                    <span class='custom-tooltip'>
-                        <span class='custom-tooltip-value'>{display_text}</span>
-                        <span class='custom-tooltip-text'>{tooltip_content}</span>
-                    </span>
-                    """
+                # create_tooltip_html moved to ui_components.py
 
                 # 3. 顯示金額 (取最小值 ~ 最大值)
                 if amounts:
@@ -641,7 +310,7 @@ def main():
                     html_out = create_tooltip_html(display_str, texts)
                     st.markdown(f"**獎助金額：** {html_out}", unsafe_allow_html=True)
                 else:
-                    st.markdown("**獎助金額：** 詳見官方公告", unsafe_allow_html=True)
+                    st.markdown("**獎助金額：** 未定/詳見公告", unsafe_allow_html=True)
                 
                 # 4. 顯示名額
                 # 【新增過濾邏輯】剔除 0 的數值，避免 AI 分析錯誤顯示 "0 名"
@@ -661,7 +330,7 @@ def main():
                     html_out = create_tooltip_html(display_str, texts)
                     st.markdown(f"**獎助名額：** {html_out}", unsafe_allow_html=True)
                 else:
-                    st.markdown("**獎助名額：** 未定 / 詳見公告", unsafe_allow_html=True)
+                    st.markdown("**獎助名額：** 未定/詳見公告", unsafe_allow_html=True)
             with col2:
                 url = scholarship.get('url', '')
                 if url:
@@ -691,6 +360,12 @@ def main():
             # ==================== 顯示資格條件 (Requirements Rendering) ====================
             groups = scholarship.get("tags", {}).get("groups", [])
             common_tags = scholarship.get("tags", {}).get("common_tags", [])
+
+            # 特殊處理：如果只有一個組別且沒有共同條件，將該組別視為共同條件顯示
+            # 這樣可以避免出現「子組別適用」只有一個「通用組別」的奇怪顯示
+            if len(groups) == 1 and not common_tags:
+                common_tags = groups[0].get("requirements", [])
+                groups = [] # 清空 groups，這樣就不會重複顯示在下方
 
             # ==================== 1. 處理共同適用條件 ====================
             if common_tags:
@@ -759,63 +434,35 @@ def main():
                     st.markdown("---")
             
             # ==================== 3. 表格與文件清單 (這部分保持不變) ====================
-            else:
-                st.markdown("### 申請條件")
-                pseudo_group = {"requirements": common_tags}
-                df = get_requirements_df(pseudo_group)
-                if df is not None:
-                    st.dataframe(df, use_container_width=True, hide_index=True)
+            # (Legacy table rendering removed)
 
-                st.markdown("#### 應繳文件與義務")
-                c1, c2 = st.columns([2, 3])
-                with c1:
-                    st.markdown("**應繳文件清單 (AI 摘要)**")
-                    docs = extract_documents_from_group(pseudo_group)
-                    if docs:
-                        for doc in docs:
-                            st.checkbox(doc, key=f"{scholarship['id']}_single_{doc}", disabled=True, value=False)
-                    else:
-                        st.caption("_無明確文件清單_")
-                    
-                    obligations = extract_obligations_from_group(pseudo_group)
-                    if obligations:
-                        st.markdown("**領獎後義務**")
-                        for obl in obligations:
-                            st.warning(obl)
-                with c2:
-                    with st.expander("點此對照原始文件說明（含詳細格式）", expanded=False):
-                        raw_docs = scholarship.get("required_documents", "無資料")
-                        st.info(raw_docs)
-                        st.markdown("**原始資格說明：**")
-                        st.text(scholarship.get("eligibility", "無資料"))
-
-            st.markdown("#### 領獎後義務（所有組別）")
+            st.markdown("#### 領獎後義務")
            
             pseudo_group = {"requirements": common_tags}
             obligations = extract_obligations_from_group(pseudo_group)
             if obligations:
-                st.markdown("**通用條件**")
+                st.markdown("**共同適用**")
                 for obl in obligations:
                     st.warning(obl)
             for group in groups:
                 group_name = group.get("group_name", "未命名組別")
                 obligations = extract_obligations_from_group(group)
                 if obligations:
-                    st.markdown(f"**組別：{group_name}**")
+                    st.markdown(f"**{group_name}**")
                     for obl in obligations:
                         st.warning(obl)
             st.markdown("")
-            st.markdown("#### 應繳文件清單（所有組別）")
+            st.markdown("#### 應繳文件清單")
             docs = extract_documents_from_group(pseudo_group)
             if docs:
-                st.markdown("**通用條件**")
+                st.markdown("**共同適用**")
                 for doc in docs:
                     st.markdown(f"- {doc}")
             for group in groups:
                 group_name = group.get("group_name", "未命名組別")
                 docs = extract_documents_from_group(group)
                 if docs:
-                    st.markdown(f"**組別：{group_name}**")
+                    st.markdown(f"**{group_name}**")
                     for doc in docs:
                         st.markdown(f"- {doc}")
             st.markdown("")

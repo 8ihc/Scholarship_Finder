@@ -6,6 +6,10 @@ def extract_tags_from_group(group: Dict, category: str) -> List[str]:
         if req.get("tag_category") == category:
             std_val = req.get("standardized_value")
             if std_val:
+                # 將「轉學生」視為「在學生」
+                if std_val == "轉學生":
+                    std_val = "在學生"
+                    
                 if "," in std_val:
                     values.extend([v.strip() for v in std_val.split(",")])
                 else:
@@ -45,9 +49,32 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         if group_grades and filters["年級"] not in group_grades:
             return False
     if filters.get("學籍狀態"):
-        group_status = extract_tags_from_group(group, "學籍狀態")
-        if group_status and not any(s in group_status for s in filters["學籍狀態"]):
-            return False
+        group_status = set(extract_tags_from_group(group, "學籍狀態"))
+        user_status = set(filters["學籍狀態"])
+        
+        # 定義特殊學籍狀態 (需要白名單驗證)
+        special_statuses = {"延畢生", "休學生"}
+        
+        # 找出使用者選擇的特殊學籍
+        user_special = user_status & special_statuses
+        
+        # 1. 特殊學籍檢查 (嚴格模式)
+        # 如果使用者選了特殊學籍，獎學金必須明確包含該狀態 (或標註不限)
+        if user_special:
+            if "不限" not in group_status:
+                # 檢查是否有交集 (即獎學金是否有標註該特殊狀態)
+                if not (user_special & group_status):
+                    return False
+        
+        # 2. 一般學籍檢查
+        # 若獎學金未標註學籍狀態，預設僅限「在學生」(一般生)
+        if not group_status:
+            group_status = {"在學生"}
+            
+        # 如果獎學金有指定狀態 (且不是不限)，則必須與使用者選擇的有交集
+        if "不限" not in group_status:
+            if not (user_status & group_status):
+                return False
     if filters.get("學院"):
         group_colleges = extract_tags_from_group(group, "學院")
         if group_colleges and not any(c in group_colleges for c in filters["學院"]):
@@ -96,3 +123,32 @@ def check_scholarship_match(scholarship: Dict, filters: Dict) -> bool:
         if check_group_match(combined_group, filters):
             return True
     return False
+
+from utils import get_min_amount_and_quota
+
+#--- 獎助金額與名額過濾器 ---
+def scholarship_amount_quota_filter(scholarship, amount_range, quota_range):
+        min_amount, min_quota = get_min_amount_and_quota(scholarship)
+        if min_amount is None:
+            min_amount = 0
+        if min_quota is None:
+            min_quota = 1
+        return (amount_range[0] <= min_amount <= amount_range[1]) and (quota_range[0] <= min_quota <= quota_range[1])
+
+def check_undetermined_amount(scholarship):
+    # Return True if amount is undetermined (None or 0)
+    tags = scholarship.get("tags", {})
+    # Check common tags
+    for req in tags.get("common_tags", []):
+        if req.get("tag_category") == "獎助金額":
+            numerical = req.get("numerical")
+            if numerical and numerical.get("num_value") is not None and numerical.get("num_value") > 0:
+                return False
+    # Check groups
+    for group in tags.get("groups", []):
+        for req in group.get("requirements", []):
+            if req.get("tag_category") == "獎助金額":
+                numerical = req.get("numerical")
+                if numerical and numerical.get("num_value") is not None and numerical.get("num_value") > 0:
+                    return False
+    return True
