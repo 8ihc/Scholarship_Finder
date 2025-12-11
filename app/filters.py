@@ -53,7 +53,7 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         user_status = set(filters["學籍狀態"])
         
         # 定義特殊學籍狀態 (需要白名單驗證)
-        special_statuses = {"延畢生", "休學生"}
+        special_statuses = {"延畢生", "休學擬復學"}
         
         # 找出使用者選擇的特殊學籍
         user_special = user_status & special_statuses
