@@ -67,7 +67,7 @@ def main():
     st.markdown("""
         <h1 style='font-size:4rem; color:#594C3B; border-bottom:3px solid #D9B91A; padding-bottom:10px;'>NTU Scholarship Finder</h1>
     """, unsafe_allow_html=True)
-    st.markdown("### 基於 AI 標籤的獎學金搜尋工具")
+    st.markdown("### 借用 AI 的力彌平資訊落差，讓有需求者不再錯過任何獎學金機會！")
     scholarships = load_scholarships()
     st.sidebar.header("篩選條件")
     filters = {}
