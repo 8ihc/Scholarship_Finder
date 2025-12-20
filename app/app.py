@@ -3,7 +3,9 @@ import html
 import streamlit as st
 import pandas as pd
 from data_loader import load_scholarships
-from filters import check_scholarship_match, scholarship_amount_quota_filter, check_undetermined_amount
+# 使用新版過濾邏輯 (v2)：包容性過濾 + 白名單邏輯
+# 如需切回舊版，將 filters_v2 改為 filters
+from filters_v2 import check_scholarship_match, scholarship_amount_quota_filter, check_undetermined_amount
 from ui_components import extract_documents_from_group, extract_obligations_from_group, toggle_sort, get_sort_label, create_tooltip_html, render_requirements_grid
 from constants import FILTER_OPTIONS, EXCHANGE_RATES
 from utils import extract_numeric_info_from_tags, get_min_amount_and_quota, get_end_date, format_number
@@ -80,18 +82,32 @@ def main():
         options=FILTER_OPTIONS["學制"],
         key="filter_degree"
     )
-    grade_map = {"1": "一", "2": "二", "3": "三", "4": "四", "4以上": "四年級以上"}
+    grade_map = {"1": "一", "2": "二", "3": "三", "4": "四", "4以上": "四年級以上", "其他": "其他", "不限/未明定": "不限/未明定"}
     filters["年級"] = st.sidebar.multiselect(
         "年級",
         options=FILTER_OPTIONS["年級"],
         format_func=lambda x: grade_map.get(x, x),
         key="filter_grade"
     )
-    filters["學籍狀態"] = st.sidebar.multiselect(
+    
+    # 學籍狀態：前端顯示名稱映射
+    status_display_map = {
+        "不限/未明定": "不限/未明定",
+        "在學生": "在學生",
+        "延畢生": "延畢生",
+        "休學生": "休學擬復學",  # 前端顯示「休學擬復學」，但實際值是「休學生」
+        "其他": "其他"
+    }
+    status_reverse_map = {v: k for k, v in status_display_map.items()}  # 反向映射
+    
+    selected_status_display = st.sidebar.multiselect(
         "學籍狀態",
-        options=FILTER_OPTIONS["學籍狀態"],
+        options=[status_display_map[opt] for opt in FILTER_OPTIONS["學籍狀態"]],
         key="filter_status"
     )
+    # 將前端選擇的顯示名稱轉換回後端的實際值
+    filters["學籍狀態"] = [status_reverse_map[s] for s in selected_status_display]
+    
     filters["學院"] = st.sidebar.multiselect(
         "學院",
         options=FILTER_OPTIONS["學院"],

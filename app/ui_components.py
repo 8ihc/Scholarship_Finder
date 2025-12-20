@@ -109,7 +109,12 @@ def render_requirements_grid(requirements_list):
                     d_text = "未定/詳見公告"
                 else:
                     unit = numerical.get("unit") or ""
-                    d_text = f"{format_number(num_val, category)}{unit}"
+                    academic_metric = numerical.get("academic_metric") or ""
+                    # 如果是 GPA，保留小數點
+                    if "GPA" in academic_metric or "GPA" in unit:
+                        d_text = f"{num_val}{unit}"
+                    else:
+                        d_text = f"{format_number(num_val, category)}{unit}"
             else:
                 d_text = raw_text
             
