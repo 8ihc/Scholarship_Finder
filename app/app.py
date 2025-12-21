@@ -178,11 +178,35 @@ def main():
     # ======= 結果數與排序按鈕同列 =======
     sort_cols = st.columns([6,1,1,0.2])
     with sort_cols[0]:
+        # 檢查使用者是否有選擇任何篩選條件
+        has_filters = any([
+            filters.get("keyword"),
+            filters.get("exclude_undetermined_amount"),
+            filters.get("學制"),
+            filters.get("年級"),
+            filters.get("學籍狀態"),
+            filters.get("學院"),
+            filters.get("國籍身分"),
+            filters.get("設籍地"),
+            filters.get("就讀地"),
+            filters.get("特殊身份"),
+            filters.get("家庭境遇"),
+            filters.get("經濟相關證明"),
+            filters.get("補助/獎學金排斥")
+        ])
+        
+        if has_filters:
+            # 使用者有選擇篩選條件
+            message = f"找到 <span style='font-weight:800'>{len(filtered_scholarships)}</span> 筆符合條件的獎學金"
+        else:
+            # 使用者沒有選擇任何篩選條件
+            message = f"瀏覽全部獎學金（共 <span style='font-weight:800'>{len(filtered_scholarships)}</span> 筆）"
+        
         st.markdown(
             f"""
             <div style='display: flex; align-items: flex-end; height: 48px;'>
                 <span style='font-size:1.2rem; font-weight:500; color:#594C3B; margin-bottom:0; padding-bottom:0; line-height:2.5;'>
-                    找到 <span style='font-weight:800'>{len(filtered_scholarships)}</span> 筆符合條件的獎學金
+                    {message}
                 </span>
             </div>
             """,
