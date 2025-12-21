@@ -7,11 +7,18 @@
 [![Google Cloud](https://img.shields.io/badge/Google_Cloud-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white)](https://cloud.google.com/)
 [![Gemini](https://img.shields.io/badge/Gemini_2.5-8E75B2?style=for-the-badge&logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
 
+## 🚀 快速開始
+
+**立即使用線上版本**：[https://ntu-scholarship-finder.streamlit.app/](https://ntu-scholarship-finder.streamlit.app/)
+
+無需安裝，建議使用平板或電腦開啟！
+
 ---
 
 ## 📖 目錄
 
 - [專題初衷](#-專題初衷)
+- [資料說明](#-資料說明)
 - [技術架構](#-技術架構)
 - [專案結構](#-專案結構)
 - [核心功能](#-核心功能)
@@ -39,6 +46,16 @@
 ### 解決方案
 
 **NTU Scholarship Finder** 透過 **AI 深度解析** 與 **智慧篩選系統**，將雜亂的獎學金資訊轉化為結構化資料，讓學生只需勾選自身條件，即可找到所有符合資格的獎學金。
+
+---
+
+## 📊 資料說明
+
+**資料來源**：[臺大獎學金公告一覽表](https://advisory.ntu.edu.tw/CMS/Scholarship?pageId=232)
+
+**資料爬取時間**：2025/11/8
+
+**資料更新狀態**：目前尚無即時更新獎學金資料功能
 
 ---
 
@@ -218,10 +235,14 @@ graph LR
 ```
 
 **技術細節**：
-- 使用 `pdfplumber` 處理文字型 PDF（速度快、免費）
-- 對於掃描型 PDF，自動切換至 **Google Cloud Vision API**
-- 實現**智慧斷點續傳**：檢查 GCS 上的現有結果，避免重複處理
-- 支援 **批次非同步處理**，大幅提升效率
+- **本地解析器**：
+  - `pdfplumber`：處理文字型 PDF（速度快、免費）
+  - `python-docx`：處理 Word 文件 (DOCX)
+  - `odfpy`：處理 OpenDocument 文件 (ODT)
+  - `python-pptx`：處理 PowerPoint 文件 (PPT/PPTX)
+- **Cloud Vision API**：對於掃描型 PDF 或圖片型文件，自動切換至 Google Cloud Vision API 進行 OCR
+- **智慧斷點續傳**：檢查 GCS 上的現有結果，避免重複處理
+- **批次非同步處理**：大幅提升效率
 
 ### 2. **AI 結構化引擎**
 
