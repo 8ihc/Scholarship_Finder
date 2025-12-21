@@ -1,6 +1,5 @@
 # 安全排除清單
 # 服務帳號金鑰 (請務必排除)
-service-account-key.json
 DO_NOT_UPLOAD.json
 
 # 常見秘密與金鑰檔案 (建議)
@@ -31,12 +30,3 @@ data/raw
 data/result/
 data/processed/
 data/analysis/
-
-for me.txt
-
-
-app_01.py
-
-instructions.md
-project_structure.md
-SCRAPER_USAGE.md

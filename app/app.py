@@ -3,9 +3,7 @@ import html
 import streamlit as st
 import pandas as pd
 from data_loader import load_scholarships
-# 使用新版過濾邏輯 (v2)：包容性過濾 + 白名單邏輯
-# 如需切回舊版，將 filters_v2 改為 filters
-from filters_v2 import check_scholarship_match, scholarship_amount_quota_filter, check_undetermined_amount
+from filters import check_scholarship_match, scholarship_amount_quota_filter, check_undetermined_amount
 from ui_components import extract_documents_from_group, extract_obligations_from_group, toggle_sort, get_sort_label, create_tooltip_html, render_requirements_grid
 from constants import FILTER_OPTIONS, EXCHANGE_RATES
 from utils import extract_numeric_info_from_tags, get_min_amount_and_quota, get_end_date, format_number
