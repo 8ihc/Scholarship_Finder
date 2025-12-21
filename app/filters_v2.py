@@ -96,8 +96,8 @@ def extract_tags_from_group(group: Dict, category: str) -> List[str]:
                     # 將「轉學生」視為「在學生」
                     if std_val == "轉學生":
                         std_val = "在學生"
-                    # 將「新住民」視為「本國籍」
-                    elif std_val == "新住民":
+                    # 將「新住民」視為「本國籍」（僅限「國籍身分」類別）
+                    elif std_val == "新住民" and category == "國籍身分":
                         std_val = "本國籍"
                     # 將「臺灣」視為「不限」（就讀地）
                     elif std_val == "臺灣":
@@ -322,6 +322,7 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
     - 特殊身份
     - 家庭境遇
     - 經濟相關證明
+    - 補助/獎學金排斥
     
     Args:
         group (Dict): 獎學金的 group 資料，包含 requirements 列表
@@ -343,27 +344,38 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         user_degrees_set = set(filters["學制"])
         excluded_set = set(excluded_degrees)
         
-        # 1. 檢查使用者選擇的學制是否在排除列表中
-        if user_degrees_set & excluded_set:
-            # 使用者選擇的學制在排除列表中，不顯示
+        # 1. 檢查排除條件（改進邏輯）
+        # 只有當使用者選擇的所有選項都在排除列表中時，才排除
+        # 例如：使用者選「大學」+「其他」，獎學金排除「其他」但有「大學」→ 應該顯示
+        non_excluded_degrees = user_degrees_set - excluded_set
+        if not non_excluded_degrees:
+            # 使用者選擇的所有學制都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「不限/未明定」選項
-        if "不限/未明定" in user_degrees_set:
-            # 使用者選擇「不限/未明定」→ 只顯示沒有標註學制的獎學金
+        # 2. 處理「不限/未明定」選項（OR 邏輯）
+        has_undetermined = "不限/未明定" in user_degrees_set
+        other_degrees = user_degrees_set - {"不限/未明定"}
+        
+        # 情況 1: 只選「不限/未明定」
+        if has_undetermined and not other_degrees:
+            # 只顯示沒有標註學制的獎學金
             if group_degrees:
-                # 獎學金有標註學制，不顯示
                 return False
-            # 獎學金沒有標註學制，繼續檢查其他條件
-        else:
-            # 3. 精確匹配：只顯示明確標註使用者選擇的學制的獎學金
+        # 情況 2: 只選具體學制（沒選「不限/未明定」）
+        elif not has_undetermined and other_degrees:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
             if not group_degrees:
-                # 獎學金沒有標註學制，但使用者選擇了具體學制，不顯示
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            if not (user_degrees_set & set(group_degrees)):
+            if not (other_degrees & set(group_degrees)):
                 return False
+        # 情況 3: 同時選「不限/未明定」和具體學制（OR 邏輯）
+        elif has_undetermined and other_degrees:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if group_degrees:
+                # 有標註，檢查是否符合使用者選擇的具體學制
+                if not (other_degrees & set(group_degrees)):
+                    return False
+            # 沒有標註的會通過（符合「不限/未明定」）
     
     # 年級檢查（精確匹配邏輯）
     if filters.get("年級"):
@@ -371,27 +383,40 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         excluded_grades = extract_excluded_tags_from_group(group, "年級")
         
         user_grades = filters["年級"]  # 這已經是列表了，不需要再包裝
+        user_grades_set = set(user_grades)
+        excluded_set = set(excluded_grades)
         
-        # 檢查排除條件
-        if any(grade in excluded_grades for grade in user_grades):
+        # 1. 檢查排除條件（改進邏輯）
+        # 只有當使用者選擇的所有選項都在排除列表中時，才排除
+        non_excluded_grades = user_grades_set - excluded_set
+        if not non_excluded_grades:
+            # 使用者選擇的所有年級都在排除列表中，不顯示
             return False
         
-        # 特殊處理：「不限/未明定」選項
-        if "不限/未明定" in user_grades:
-            # 使用者選擇「不限/未明定」→ 只顯示沒有標註年級的獎學金
+        # 2. 處理「不限/未明定」選項（OR 邏輯）
+        has_undetermined = "不限/未明定" in user_grades_set
+        other_grades = user_grades_set - {"不限/未明定"}
+        
+        # 情況 1: 只選「不限/未明定」
+        if has_undetermined and not other_grades:
+            # 只顯示沒有標註年級的獎學金
             if group_grades:
-                # 獎學金有標註年級，不顯示
                 return False
-            # 獎學金沒有標註年級，繼續檢查其他條件
-        else:
-            # 精確匹配：只顯示明確標註使用者選擇的年級的獎學金
+        # 情況 2: 只選具體年級（沒選「不限/未明定」）
+        elif not has_undetermined and other_grades:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
             if not group_grades:
-                # 獎學金沒有標註年級，但使用者選擇了具體年級，不顯示
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            if not (set(user_grades) & set(group_grades)):
+            if not (other_grades & set(group_grades)):
                 return False
+        # 情況 3: 同時選「不限/未明定」和具體年級（OR 邏輯）
+        elif has_undetermined and other_grades:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if group_grades:
+                # 有標註，檢查是否符合使用者選擇的具體年級
+                if not (other_grades & set(group_grades)):
+                    return False
+            # 沒有標註的會通過（符合「不限/未明定」）
     
     # 學籍狀態檢查（含特殊邏輯和「不限/未明定」）
     if filters.get("學籍狀態"):
@@ -402,43 +427,78 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         user_status_set = set(user_status_list)
         excluded_set = set(excluded_status)
         
-        # 1. 檢查排除條件
-        if user_status_set & excluded_set:
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_status = user_status_set - excluded_set
+        if not non_excluded_status:
+            # 使用者選擇的所有學籍狀態都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「不限/未明定」選項
-        if "不限/未明定" in user_status_set:
-            # 使用者選擇「不限/未明定」→ 只顯示沒有標註學籍狀態的獎學金
+        # 2. 處理「不限/未明定」選項（OR 邏輯）
+        has_undetermined = "不限/未明定" in user_status_set
+        other_status = user_status_set - {"不限/未明定"}
+        
+        # 情況 1: 只選「不限/未明定」
+        if has_undetermined and not other_status:
+            # 只顯示沒有標註學籍狀態的獎學金
             if group_status:
-                # 獎學金有標註學籍狀態，不顯示
                 return False
-            # 獎學金沒有標註學籍狀態，繼續檢查其他條件
-        else:
+        # 情況 2: 只選具體學籍狀態（沒選「不限/未明定」）
+        elif not has_undetermined and other_status:
             # 3. 特殊身份白名單邏輯（延畢生、休學擬復學）
-            user_special = user_status_set & SPECIAL_STUDENT_STATUS
+            user_special = other_status & SPECIAL_STUDENT_STATUS
+            user_normal = other_status - SPECIAL_STUDENT_STATUS
+            
+            # 分別檢查特殊學籍和一般學籍
+            special_match = False
+            normal_match = False
             
             if user_special:
                 # 使用者選了特殊學籍（延畢生或休學擬復學）
+                if group_status:
+                    # 獎學金有標註學籍狀態，檢查是否包含特殊學籍
+                    if user_special & set(group_status):
+                        special_match = True
+                # 如果獎學金沒有標註學籍狀態，特殊學籍不符合（預設僅限在學生）
+            
+            if user_normal:
+                # 使用者選了一般學籍
                 if not group_status:
-                    # 獎學金未標註學籍狀態 = 預設僅限在學生 = 不符合
+                    # 獎學金未標註學籍狀態，不顯示
+                    pass  # normal_match 保持 False
+                else:
+                    # 獎學金有標註學籍狀態，檢查是否有交集
+                    if user_normal & set(group_status):
+                        normal_match = True
+            
+            # OR 邏輯：只要特殊學籍或一般學籍有一個符合就顯示
+            if user_special and user_normal:
+                # 同時選了特殊和一般學籍
+                if not (special_match or normal_match):
                     return False
+            elif user_special:
+                # 只選了特殊學籍
+                if not special_match:
+                    return False
+            elif user_normal:
+                # 只選了一般學籍
+                if not normal_match:
+                    return False
+        # 情況 3: 同時選「不限/未明定」和具體學籍狀態（OR 邏輯）
+        elif has_undetermined and other_status:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if group_status:
+                # 有標註，需要檢查特殊邏輯
+                user_special = other_status & SPECIAL_STUDENT_STATUS
                 
-                if "不限" not in group_status:
-                    # 獎學金沒有標註「不限」，必須明確包含該特殊狀態
+                if user_special:
+                    # 使用者選了特殊學籍，必須明確包含
                     if not (user_special & set(group_status)):
                         return False
-            
-            # 4. 一般學籍檢查
-            if not group_status:
-                # 獎學金未標註學籍狀態，預設僅限「在學生」
-                if "在學生" not in user_status_set:
-                    return False
-            else:
-                # 獎學金有標註學籍狀態
-                if "不限" not in group_status:
-                    # 檢查是否有交集
-                    if not (user_status_set & set(group_status)):
+                else:
+                    # 一般學籍，檢查交集
+                    if not (other_status & set(group_status)):
                         return False
+            # 沒有標註的會通過（符合「不限/未明定」）
     
     # 學院檢查（精確匹配邏輯）
     if filters.get("學院"):
@@ -448,34 +508,39 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         user_colleges_set = set(filters["學院"])
         excluded_set = set(excluded_colleges)
         
-        # 1. 檢查排除條件
-        if user_colleges_set & excluded_set:
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_colleges = user_colleges_set - excluded_set
+        if not non_excluded_colleges:
+            # 使用者選擇的所有學院都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「不限/未明定」選項
-        if "不限/未明定" in user_colleges_set:
-            # 使用者選擇「不限/未明定」→ 顯示沒有標註學院或標註「不限」的獎學金
-            if group_colleges and group_colleges != ["不限"]:
-                # 獎學金有標註具體學院（不是「不限」），不顯示
+        # 2. 處理「不限/未明定」選項（OR 邏輯）
+        has_undetermined = "不限/未明定" in user_colleges_set
+        other_colleges = user_colleges_set - {"不限/未明定"}
+        
+        # 將標註「不限」的獎學金視為未標註
+        effective_colleges = [c for c in group_colleges if c != "不限"]
+        
+        # 情況 1: 只選「不限/未明定」
+        if has_undetermined and not other_colleges:
+            # 只顯示沒有標註學院的獎學金（或只標註「不限」的）
+            if effective_colleges:
                 return False
-            # 獎學金沒有標註學院或只標註「不限」，繼續檢查其他條件
-        else:
-            # 3. 精確匹配：只顯示明確標註使用者選擇的學院的獎學金
-            
-            # 特殊處理：將「不限」視為未標註
-            # 如果獎學金只標註「不限」，應該被視為沒有標註學院
-            if group_colleges == ["不限"] or (len(group_colleges) == 1 and "不限" in group_colleges):
-                # 獎學金標註「不限」= 沒有限制學院 = 應該選擇「不限/未明定」才會顯示
+        # 情況 2: 只選具體學院（沒選「不限/未明定」）
+        elif not has_undetermined and other_colleges:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
+            if not effective_colleges:
                 return False
-            
-            if not group_colleges:
-                # 獎學金沒有標註學院，但使用者選擇了具體學院，不顯示
+            if not (other_colleges & set(effective_colleges)):
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            # 注意：這裡會排除「不限」，因為我們已經在上面處理了
-            if not (user_colleges_set & set(group_colleges)):
-                return False
+        # 情況 3: 同時選「不限/未明定」和具體學院（OR 邏輯）
+        elif has_undetermined and other_colleges:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if effective_colleges:
+                # 有標註，檢查是否符合使用者選擇的具體學院
+                if not (other_colleges & set(effective_colleges)):
+                    return False
+            # 沒有標註的會通過（符合「不限/未明定」）
     
     # 國籍身分檢查（精確匹配邏輯）
     if filters.get("國籍身分"):
@@ -485,32 +550,39 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         user_identities_set = set(filters["國籍身分"])
         excluded_set = set(excluded_identities)
         
-        # 1. 檢查排除條件
-        if user_identities_set & excluded_set:
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_identities = user_identities_set - excluded_set
+        if not non_excluded_identities:
+            # 使用者選擇的所有國籍身分都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「不限/未明定」選項
-        if "不限/未明定" in user_identities_set:
-            # 使用者選擇「不限/未明定」→ 顯示沒有標註國籍身分或標註「不限」的獎學金
-            if group_identities and group_identities != ["不限"]:
-                # 獎學金有標註具體國籍身分（不是「不限」），不顯示
+        # 2. 處理「不限/未明定」選項（OR 邏輯）
+        has_undetermined = "不限/未明定" in user_identities_set
+        other_identities = user_identities_set - {"不限/未明定"}
+        
+        # 將標註「不限」的獎學金視為未標註
+        effective_identities = [i for i in group_identities if i != "不限"]
+        
+        # 情況 1: 只選「不限/未明定」
+        if has_undetermined and not other_identities:
+            # 只顯示沒有標註國籍身分的獎學金（或只標註「不限」的）
+            if effective_identities:
                 return False
-            # 獎學金沒有標註國籍身分或只標註「不限」，繼續檢查其他條件
-        else:
-            # 3. 精確匹配：只顯示明確標註使用者選擇的國籍身分的獎學金
-            
-            # 特殊處理：將「不限」視為未標註
-            if group_identities == ["不限"] or (len(group_identities) == 1 and "不限" in group_identities):
-                # 獎學金標註「不限」= 沒有限制國籍身分 = 應該選擇「不限/未明定」才會顯示
+        # 情況 2: 只選具體國籍身分（沒選「不限/未明定」）
+        elif not has_undetermined and other_identities:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
+            if not effective_identities:
                 return False
-            
-            if not group_identities:
-                # 獎學金沒有標註國籍身分，但使用者選擇了具體國籍身分，不顯示
+            if not (other_identities & set(effective_identities)):
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            if not (user_identities_set & set(group_identities)):
-                return False
+        # 情況 3: 同時選「不限/未明定」和具體國籍身分（OR 邏輯）
+        elif has_undetermined and other_identities:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if effective_identities:
+                # 有標註，檢查是否符合使用者選擇的具體國籍身分
+                if not (other_identities & set(effective_identities)):
+                    return False
+            # 沒有標註的會通過（符合「不限/未明定」）
     
     # 設籍地檢查（精確匹配邏輯，支援多選）
     if filters.get("設籍地"):
@@ -519,33 +591,41 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         
         user_domiciles = filters["設籍地"]  # 這是一個列表
         user_domiciles_set = set(user_domiciles)
+        excluded_set = set(excluded_domicile)
         
-        # 1. 檢查排除條件
-        if user_domiciles_set & set(excluded_domicile):
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_domiciles = user_domiciles_set - excluded_set
+        if not non_excluded_domiciles:
+            # 使用者選擇的所有設籍地都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「不限/未明定」選項
-        if "不限/未明定" in user_domiciles_set:
-            # 使用者選擇「不限/未明定」→ 顯示沒有標註設籍地或標註「不限」的獎學金
-            if group_domicile and group_domicile != ["不限"]:
-                # 獎學金有標註具體設籍地（不是「不限」），不顯示
+        # 2. 處理「不限/未明定」選項（OR 邏輯）
+        has_undetermined = "不限/未明定" in user_domiciles_set
+        other_domiciles = user_domiciles_set - {"不限/未明定"}
+        
+        # 將標註「不限」的獎學金視為未標註
+        effective_domiciles = [d for d in group_domicile if d != "不限"]
+        
+        # 情況 1: 只選「不限/未明定」
+        if has_undetermined and not other_domiciles:
+            # 只顯示沒有標註設籍地的獎學金（或只標註「不限」的）
+            if effective_domiciles:
                 return False
-            # 獎學金沒有標註設籍地或只標註「不限」，繼續檢查其他條件
-        else:
-            # 3. 精確匹配：只顯示明確標註使用者選擇的設籍地的獎學金
-            
-            # 特殊處理：將「不限」視為未標註
-            if group_domicile == ["不限"] or (len(group_domicile) == 1 and "不限" in group_domicile):
-                # 獎學金標註「不限」= 沒有限制設籍地 = 應該選擇「不限/未明定」才會顯示
+        # 情況 2: 只選具體設籍地（沒選「不限/未明定」）
+        elif not has_undetermined and other_domiciles:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
+            if not effective_domiciles:
                 return False
-            
-            if not group_domicile:
-                # 獎學金沒有標註設籍地，但使用者選擇了具體設籍地，不顯示
+            if not (other_domiciles & set(effective_domiciles)):
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            if not (user_domiciles_set & set(group_domicile)):
-                return False
+        # 情況 3: 同時選「不限/未明定」和具體設籍地（OR 邏輯）
+        elif has_undetermined and other_domiciles:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if effective_domiciles:
+                # 有標註，檢查是否符合使用者選擇的具體設籍地
+                if not (other_domiciles & set(effective_domiciles)):
+                    return False
+            # 沒有標註的會通過（符合「不限/未明定」）
     
     # 就讀地檢查（精確匹配邏輯，支援多選）
     if filters.get("就讀地"):
@@ -554,47 +634,81 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         
         user_study_locs = filters["就讀地"]  # 這是一個列表
         user_study_locs_set = set(user_study_locs)
+        excluded_set = set(excluded_study_loc)
         
-        # 1. 檢查排除條件
-        if user_study_locs_set & set(excluded_study_loc):
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_study_locs = user_study_locs_set - excluded_set
+        if not non_excluded_study_locs:
+            # 使用者選擇的所有就讀地都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「不限/未明定」選項
-        if "不限/未明定" in user_study_locs_set:
-            # 使用者選擇「不限/未明定」→ 顯示沒有標註就讀地或標註「不限」的獎學金
-            if group_study_loc and group_study_loc != ["不限"]:
-                # 獎學金有標註具體就讀地（不是「不限」），不顯示
+        # 2. 處理「不限/未明定」選項（OR 邏輯）
+        has_undetermined = "不限/未明定" in user_study_locs_set
+        other_study_locs = user_study_locs_set - {"不限/未明定"}
+        
+        # 將標註「不限」的獎學金視為未標註
+        effective_study_locs = [s for s in group_study_loc if s != "不限"]
+        
+        # 情況 1: 只選「不限/未明定」
+        if has_undetermined and not other_study_locs:
+            # 只顯示沒有標註就讀地的獎學金（或只標註「不限」的）
+            if effective_study_locs:
                 return False
-            # 獎學金沒有標註就讀地或只標註「不限」，繼續檢查其他條件
-        else:
-            # 3. 精確匹配：只顯示明確標註使用者選擇的就讀地的獎學金
-            
-            # 特殊處理：將「不限」視為未標註
-            if group_study_loc == ["不限"] or (len(group_study_loc) == 1 and "不限" in group_study_loc):
-                # 獎學金標註「不限」= 沒有限制就讀地 = 應該選擇「不限/未明定」才會顯示
+        # 情況 2: 只選具體就讀地（沒選「不限/未明定」）
+        elif not has_undetermined and other_study_locs:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
+            if not effective_study_locs:
                 return False
-            
-            if not group_study_loc:
-                # 獎學金沒有標註就讀地，但使用者選擇了具體就讀地，不顯示
+            if not (other_study_locs & set(effective_study_locs)):
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            if not (user_study_locs_set & set(group_study_loc)):
-                return False
+        # 情況 3: 同時選「不限/未明定」和具體就讀地（OR 邏輯）
+        elif has_undetermined and other_study_locs:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if effective_study_locs:
+                # 有標註，檢查是否符合使用者選擇的具體就讀地
+                if not (other_study_locs & set(effective_study_locs)):
+                    return False
+            # 沒有標註的會通過（符合「不限/未明定」）
     
-    # 特殊身份檢查
+    # 特殊身份檢查（精確匹配邏輯，支援多選）
     if filters.get("特殊身份"):
         group_special = extract_tags_from_group(group, "特殊身份")
         excluded_special = extract_excluded_tags_from_group(group, "特殊身份")
         
-        # 檢查排除條件
-        user_special_set = set(filters["特殊身份"])
+        user_special = filters["特殊身份"]  # 這是一個列表
+        user_special_set = set(user_special)
         excluded_set = set(excluded_special)
-        if user_special_set & excluded_set:
+        
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_special = user_special_set - excluded_set
+        if not non_excluded_special:
+            # 使用者選擇的所有特殊身份都在排除列表中，不顯示
             return False
         
-        if not check_multi_select_match(group_special, filters["特殊身份"]):
-            return False
+        # 2. 處理「未提及」選項（OR 邏輯）
+        has_unmentioned = "未提及" in user_special_set
+        other_special = user_special_set - {"未提及"}
+        
+        # 情況 1: 只選「未提及」
+        if has_unmentioned and not other_special:
+            # 只顯示沒有標註特殊身份的獎學金
+            if group_special:
+                return False
+        # 情況 2: 只選具體特殊身份（沒選「未提及」）
+        elif not has_unmentioned and other_special:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
+            if not group_special:
+                return False
+            if not (other_special & set(group_special)):
+                return False
+        # 情況 3: 同時選「未提及」和具體特殊身份（OR 邏輯）
+        elif has_unmentioned and other_special:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if group_special:
+                # 有標註，檢查是否符合使用者選擇的具體特殊身份
+                if not (other_special & set(group_special)):
+                    return False
+            # 沒有標註的會通過（符合「未提及」）
     
     # 家庭境遇檢查（精確匹配邏輯，支援多選）
     if filters.get("家庭境遇"):
@@ -603,28 +717,38 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         
         user_family = filters["家庭境遇"]  # 這是一個列表
         user_family_set = set(user_family)
+        excluded_set = set(excluded_family)
         
-        # 1. 檢查排除條件
-        if user_family_set & set(excluded_family):
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_family = user_family_set - excluded_set
+        if not non_excluded_family:
+            # 使用者選擇的所有家庭境遇都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「未提及」選項
-        if "未提及" in user_family_set:
-            # 使用者選擇「未提及」→ 只顯示沒有標註家庭境遇的獎學金
+        # 2. 處理「未提及」選項（OR 邏輯）
+        has_unmentioned = "未提及" in user_family_set
+        other_family = user_family_set - {"未提及"}
+        
+        # 情況 1: 只選「未提及」
+        if has_unmentioned and not other_family:
+            # 只顯示沒有標註家庭境遇的獎學金
             if group_family:
-                # 獎學金有標註家庭境遇，不顯示
                 return False
-            # 獎學金沒有標註家庭境遇，繼續檢查其他條件
-        else:
-            # 3. 精確匹配：只顯示明確標註使用者選擇的家庭境遇的獎學金
-            
+        # 情況 2: 只選具體家庭境遇（沒選「未提及」）
+        elif not has_unmentioned and other_family:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
             if not group_family:
-                # 獎學金沒有標註家庭境遇，但使用者選擇了具體境遇，不顯示
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            if not (user_family_set & set(group_family)):
+            if not (other_family & set(group_family)):
                 return False
+        # 情況 3: 同時選「未提及」和具體家庭境遇（OR 邏輯）
+        elif has_unmentioned and other_family:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if group_family:
+                # 有標註，檢查是否符合使用者選擇的具體家庭境遇
+                if not (other_family & set(group_family)):
+                    return False
+            # 沒有標註的會通過（符合「未提及」）
     
     
     # 經濟相關證明檢查（精確匹配邏輯，支援多選）
@@ -634,28 +758,78 @@ def check_group_match(group: Dict, filters: Dict) -> bool:
         
         user_economic = filters["經濟相關證明"]  # 這是一個列表
         user_economic_set = set(user_economic)
+        excluded_set = set(excluded_economic)
         
-        # 1. 檢查排除條件
-        if user_economic_set & set(excluded_economic):
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_economic = user_economic_set - excluded_set
+        if not non_excluded_economic:
+            # 使用者選擇的所有經濟相關證明都在排除列表中，不顯示
             return False
         
-        # 2. 特殊處理：「未提及」選項
-        if "未提及" in user_economic_set:
-            # 使用者選擇「未提及」→ 只顯示沒有標註經濟相關證明的獎學金
+        # 2. 處理「未提及」選項（OR 邏輯）
+        has_unmentioned = "未提及" in user_economic_set
+        other_economic = user_economic_set - {"未提及"}
+        
+        # 情況 1: 只選「未提及」
+        if has_unmentioned and not other_economic:
+            # 只顯示沒有標註經濟相關證明的獎學金
             if group_economic:
-                # 獎學金有標註經濟相關證明，不顯示
                 return False
-            # 獎學金沒有標註經濟相關證明，繼續檢查其他條件
-        else:
-            # 3. 精確匹配：只顯示明確標註使用者選擇的經濟相關證明的獎學金
-            
+        # 情況 2: 只選具體經濟相關證明（沒選「未提及」）
+        elif not has_unmentioned and other_economic:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
             if not group_economic:
-                # 獎學金沒有標註經濟相關證明，但使用者選擇了具體證明，不顯示
                 return False
-            
-            # 檢查是否有交集（精確匹配）
-            if not (user_economic_set & set(group_economic)):
+            if not (other_economic & set(group_economic)):
                 return False
+        # 情況 3: 同時選「未提及」和具體經濟相關證明（OR 邏輯）
+        elif has_unmentioned and other_economic:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if group_economic:
+                # 有標註，檢查是否符合使用者選擇的具體經濟相關證明
+                if not (other_economic & set(group_economic)):
+                    return False
+            # 沒有標註的會通過（符合「未提及」）
+    
+    # 補助/獎學金排斥檢查（精確匹配邏輯，支援多選）
+    if filters.get("補助/獎學金排斥"):
+        group_exclusion = extract_tags_from_group(group, "補助/獎學金排斥")
+        excluded_exclusion = extract_excluded_tags_from_group(group, "補助/獎學金排斥")
+        
+        user_exclusion = filters["補助/獎學金排斥"]  # 這是一個列表
+        user_exclusion_set = set(user_exclusion)
+        excluded_set = set(excluded_exclusion)
+        
+        # 1. 檢查排除條件（改進邏輯）
+        non_excluded_exclusion = user_exclusion_set - excluded_set
+        if not non_excluded_exclusion:
+            # 使用者選擇的所有選項都在排除列表中，不顯示
+            return False
+        
+        # 2. 處理「未提及」選項（OR 邏輯）
+        has_unmentioned = "未提及" in user_exclusion_set
+        other_exclusion = user_exclusion_set - {"未提及"}
+        
+        # 情況 1: 只選「未提及」
+        if has_unmentioned and not other_exclusion:
+            # 只顯示沒有標註補助/獎學金排斥的獎學金
+            if group_exclusion:
+                return False
+        # 情況 2: 只選具體選項（沒選「未提及」）
+        elif not has_unmentioned and other_exclusion:
+            # 只顯示有標註且與使用者選擇有交集的獎學金
+            if not group_exclusion:
+                return False
+            if not (other_exclusion & set(group_exclusion)):
+                return False
+        # 情況 3: 同時選「未提及」和具體選項（OR 邏輯）
+        elif has_unmentioned and other_exclusion:
+            # 顯示：沒有標註的 OR 有標註且符合的
+            if group_exclusion:
+                # 有標註，檢查是否符合使用者選擇的具體選項
+                if not (other_exclusion & set(group_exclusion)):
+                    return False
+            # 沒有標註的會通過（符合「未提及」）
     
     
     return True
