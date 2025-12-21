@@ -46,31 +46,26 @@ load_css("app/styles.css")
 def show_welcome_dialog():
     st.markdown("""
     ### 💡 聰明篩選，不錯過任何機會
+
+    本系統透過 **AI 深度解析並標準化**「臺大獎學金公告」，並採用 **「彈性篩選」** 機制，讓您輕鬆找到所有符合資格的獎學金。
     
-    本系統採用 **「彈性篩選」** 機制，讓您輕鬆找到所有符合資格的獎學金。
+    #### 📋 篩選小撇步
     
-    #### 📋 篩選邏輯說明
+    **1️⃣ 同類別內（加選）：** 選越多，機會越多！
+    - 例如：選「大學 + 碩士」，會看到兩者皆可申請的項目
     
-    **1️⃣ 同類別內：OR 邏輯（擴大搜尋）**
-    - 在同一個篩選類別中，選擇多個選項會顯示**符合任一條件**的獎學金
-    - 例如：選擇「大學」+「碩士」→ 顯示適用於大學**或**碩士的獎學金
+    **2️⃣ 跨類別間（交集）：** 選越細，越精準！
+    - 例如：選「工學院 + 一年級」，只顯示**同時**適用於工學院**且**一年級的獎學金，快速篩出專屬您的獎學金
     
-    **2️⃣ 跨類別間：AND 邏輯（精準篩選）**
-    - 不同類別的條件必須**同時符合**
-    - 例如：選擇「工學院」+「1年級」→ 只顯示**同時**適用於工學院**且**1年級的獎學金
-    
-    **3️⃣ 「不限/未明定」和「未提及」：放寬條件**
-    - 勾選這些選項可以**擴大搜尋範圍**，包含沒有明確標註的獎學金
+    **3️⃣ 關鍵技巧：** 勾選 「不限/未明定」和「未提及」，系統會幫您抓出那些沒有設定硬性門檻、人人都有機會的獎學金！
     - 例如：選擇「工學院」+「不限/未明定」→ 顯示工學院 + 沒有限制學院的獎學金
-    - 💡 **建議**：如果結果太少，試著加選「不限/未明定」或「未提及」！
     
-    #### 🎯 實用技巧
+    #### 🎯 互動小驚喜
     
-    - **精準搜尋**：只選擇具體條件（如「工學院」、「1年級」）
-    - **廣泛搜尋**：加選「不限/未明定」或「未提及」，不錯過任何機會
+    - 查看原文： 看到有<span style="border-bottom: 2px dotted #D9B91A;">點點底線</span>的文字嗎？將滑鼠移上去，即可對照 AI 處理前的原始內容，確保資訊不失真。
     
     請放心選擇您的資格與條件，系統會自動幫您找出所有可能的機會！
-    """)
+    """, unsafe_allow_html=True)
     if st.button("我瞭解了，開始使用", type="primary", use_container_width=True):
         st.session_state['has_seen_welcome'] = True
         st.rerun()
@@ -83,6 +78,21 @@ def main():
         <h1 style='font-size:4rem; color:#594C3B; border-bottom:3px solid #D9B91A; padding-bottom:10px;'>NTU Scholarship Finder</h1>
     """, unsafe_allow_html=True)
     st.markdown("### 借用 AI 的力量彌平資訊落差，讓有需求者不錯過任何機會！")
+    st.markdown("""
+        <style>
+            .source-link {
+                color: #6c757d;
+                text-decoration: none;
+                transition: color 0.2s;
+            }
+            .source-link:hover {
+                color: #333333;
+            }
+        </style>
+        <p style='font-size:0.875rem; color:#6c757d; margin-top:0px;'>
+            資料來源：<a href='https://advisory.ntu.edu.tw/CMS/Scholarship?pageId=232' target='_blank' class='source-link'>臺大獎學金公告一覽表</a>｜資料爬取時間：2025/11/8｜目前尚無即時更新獎學金資料功能
+        </p>
+    """, unsafe_allow_html=True)
     scholarships = load_scholarships()
     st.sidebar.header("篩選條件")
     filters = {}
