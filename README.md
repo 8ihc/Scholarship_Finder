@@ -19,13 +19,12 @@
 
 - [專題初衷](#-專題初衷)
 - [資料說明](#-資料說明)
-- [技術架構](#-技術架構)
-- [專案結構](#-專案結構)
-- [核心功能](#-核心功能)
-- [技術亮點](#-技術亮點)
+- [技術使用](#-技術使用)
 - [系統流程圖](#-系統流程圖)
+- [專案結構](#-專案結構)
+- [技術亮點](#-技術亮點)
+- [核心功能](#-核心功能)
 - [已知限制](#-已知限制)
-- [安裝與使用](#-安裝與使用)
 - [未來展望](#-未來展望)
 - [商業模式構想](#-商業模式構想)
 - [授權](#-授權)
@@ -59,9 +58,8 @@
 
 ---
 
-## 🏗️ 技術架構
+## 🏗️ 技術使用
 
-### 核心技術棧
 
 | 技術領域 | 使用技術 |
 |---------|---------|
@@ -73,221 +71,6 @@
 | **Schema 驗證** | Pydantic |
 | **資料處理** | Pandas, NumPy |
 | **資料庫** | JSON |
-
-### AI 在專案中的關鍵角色
-
-本專案的核心創新在於使用 **Gemini 2.5 Flash** 進行**大規模非結構化文本的結構化處理**：
-
-#### 1. **定義 19 維度標籤系統**
-```python
-CATEGORIES = Literal[
-    "學制", "年級", "學籍狀態", "學院", 
-    "國籍身分", "設籍地", "就讀地", 
-    "特殊身份", "家庭境遇", "經濟相關證明", 
-    "核心學業要求", "操行/品德", "特殊能力/專長",
-    "補助/獎學金排斥", "領獎學金後的義務", 
-    "獎助金額", "獎助名額", "應繳文件",
-    "其他（用於無法歸類的特殊要求）"
-]
-```
-
-#### 2. **190 行超詳細 System Prompt**
-教導 AI 如何：
-- **識別組別結構**：辨識單筆獎學金中的多個申請組別（如「清寒組」、「優秀組」）
-- **精準分類**：將每個條件準確歸類到 19 個標籤類別之一
-- **標準化映射**：將原始文字映射到預定義的標準選項清單
-  - 例如：「家境清寒」→ 根據應繳文件推論為「低收入戶證明」或「村里長提供之清寒證明」
-- **處理否定邏輯**：將排除條件轉換為符合資格的身分
-  - 例如：「不含延畢生」→ 映射為「在學生」
-- **複合條件拆分**：將「A 或 B」拆成兩個獨立標籤
-  - 例如：「低收入戶或清寒證明」→ 拆成「低收入戶證明」+「村里長提供之清寒證明」
-- **數值結構化**：提取並標準化金額、名額、GPA、排名等數值資訊
-- **隱含條件推論**：根據上下文推論未明確標註的條件
-  - 例如：提及「戶籍」→ 推論為「本國籍」
-  - 例如：「臺灣地區」→ 推論設籍地為「不限」
-- **證明文件優先級提升**：將具備「證明資格」功能的應繳文件，優先歸類為對應的資格類別
-- **組別歸屬判斷**：區分通用條件（`common_tags`）與組別特有條件（`requirements`）
-
-#### 3. **Pydantic Schema 強制驗證**
-```python
-class SubTag(BaseModel):
-    tag_category: CATEGORIES
-    condition_type: Literal["限於", "包含", "屬性"]
-    tag_value: str  # 原始文字
-    standardized_value: Optional[str]  # 標準化值
-    numerical: Optional[NumericalAttributes]  # 數值資料
-```
-
-確保 AI 輸出的 JSON 100% 符合前端需求，避免解析錯誤。
-
----
-
-## 📂 專案結構
-
-```
-new_scholarship/
-├── README.md                           # 專案主要說明文件
-├── requirements.txt                    # Python 套件依賴
-├── app/                                # 前端應用程式
-│   ├── app.py                          # Streamlit 主程式
-│   ├── filters.py                      # 彈性篩選邏輯
-│   ├── ui_components.py                # UI 元件（Tooltip、Grid 等）
-│   ├── data_loader.py                  # 資料載入器
-│   ├── constants.py                    # 常數定義（篩選選項、匯率等）
-│   ├── utils.py                        # 工具函數
-│   └── styles.css                      # 自訂樣式
-│
-├── scripts/                            # 資料處理腳本
-│   ├── get_data/                       # 階段 1-4：資料獲取與解析
-│   │   ├── scrape_scholarships.py      # 步驟 1：爬取獎學金列表
-│   │   ├── download_attachments.py     # 步驟 2：下載官網提供之附件
-│   │   ├── document_parsing_and_OCR_staging.py  # 步驟 3：本地文件解析 & 標註需 OCR 之文件
-│   │   └── cloud_ocr_processor.py      # 步驟 4：Cloud OCR 處理
-│   │
-│   ├── data_processing/                # 階段 5-6：資料整合
-│   │   ├── merge_scholarships_attachments.py  # 步驟 5：合併附件與元數據
-│   │   ├── create_full_text_for_llm.py        # 步驟 6：創建 LLM 輸入文本
-│   │   └── merge_tags_with_metadata.py        # 步驟 8：最終合併
-│   │
-│   └── data_analysis/                  # 階段 7：AI 標籤處理
-│       └── tag_processor_batch.py      # 步驟 7：AI 批次標籤處理（Gemini 2.5 Flash）
-│
-├── data/                               # 資料儲存（分階段處理）
-│   ├── raw/                            # 原始資料（爬蟲結果 + 下載的附件）
-│   ├── processed/                      # 處理後資料（解析文本 + OCR 結果）
-│   ├── analysis/                       # AI 分析結果（300 個 JSON 檔案）
-│   └── merged/                         # 最終整合資料
-│       └── scholarships_merged_300.json  # 完整的 300 筆獎學金資料
-│
-└── docs/                               # 詳細文件
-    ├── PROPOSAL.md                     # 專題提案文件
-    └── SCRAPER_USAGE.md                # 爬蟲詳細使用說明
-```
-
-### 🔄 資料處理流程對照
-
-| 步驟 | 腳本檔案 | 輸入 | 輸出 |
-|------|---------|------|------|
-| 1️⃣ | `scrape_scholarships.py` | 台大獎學金網站 | 獎學金元數據（CSV + SQLite） |
-| 2️⃣ | `download_attachments.py` | 元數據中的附件連結 | 本地附件檔案（PDF/Word/PPT） |
-| 3️⃣ | `document_parsing_and_OCR_staging.py` | 本地附件檔案 | 解析文本 + OCR 需求標記 |
-| 4️⃣ | `cloud_ocr_processor.py` | 需 OCR 的檔案 | OCR 解析文本 |
-| 5️⃣ | `merge_scholarships_attachments.py` | 元數據 + 解析文本 | 整合 JSON |
-| 6️⃣ | `create_full_text_for_llm.py` | 整合 JSON | `full_text_for_llm` 欄位 |
-| 7️⃣ | `tag_processor_batch.py` | `full_text_for_llm` | AI 結構化標籤（19 類別） |
-| 8️⃣ | `merge_tags_with_metadata.py` | 元數據 + AI 標籤 | **最終資料** |
-
----
-
-## ✨ 核心功能
-
-### 1. **智慧篩選系統**
-
-#### 📋 篩選邏輯
-- **同類別內（OR 邏輯）**：選「大學 + 碩士」→ 顯示兩者皆可申請的獎學金
-- **跨類別間（AND 邏輯）**：選「工學院 + 一年級」→ 只顯示同時符合兩者的獎學金
-- **包容性設計**：未標註 = 不限制 = 顯示給使用者
-
-#### 🎯 特殊處理
-
-**「不限/未明定」vs「未提及」的差異：**
-- **「不限」**：獎學金**明確標註**「不限制」該條件（如「國籍身分：不限」）
-  - 選擇此選項 = 包含確定沒有限制的獎學金
-- **「未明定/未提及」**：獎學金公告中**完全沒有提到**該條件
-  - 選擇此選項 = 包含可能有隱含限制但未明確標註的獎學金
-  - ⚠️ **建議**：申請前務必查看官方公告，確認是否有隱含限制
-
-**其他智慧處理：**
-- **否定條件智慧處理**：AI 自動將「不含 X」轉換為「限於非 X」
-
-### 2. **原始資訊追溯**
-
-- 將滑鼠移到帶有 <span style="border-bottom: 2px dotted #D9B91A;">點點底線</span> 的文字上
-- 即可查看 AI 處理前的原始獎學金內容
-- 確保資訊透明度與可信度
-
-### 3. **多維度排序**
-
-- **按金額排序**：優先顯示高額獎學金
-- **按截止日期排序**：避免錯過申請時間
-
-### 4. **關鍵字搜尋**
-
-- 支援在獎學金名稱、資格條件中搜尋
-- 不區分大小寫，快速定位目標
-
----
-
-## 🚀 技術亮點
-
-### 1. **多模態文件解析管線**
-
-```mermaid
-graph LR
-    A[原始附件<br/>PDF/Word/PPT] --> B{本地解析}
-    B -->|成功| C[提取文字]
-    B -->|失敗/圖片型PDF/PPT| D[標記 OCR_REQUIRED]
-    D --> E[上傳至 GCS]
-    E --> F[Cloud Vision API<br/>批次 OCR]
-    F --> G[下載結果]
-    G --> C
-    C --> H[合併為 full_text_for_llm]
-```
-
-**技術細節**：
-- **本地解析器**：
-  - `pdfplumber`：處理文字型 PDF（速度快、免費）
-  - `python-docx`：處理 Word 文件 (DOCX)
-  - `odfpy`：處理 OpenDocument 文件 (ODT)
-  - `python-pptx`：處理 PowerPoint 文件 (PPT/PPTX)
-- **Cloud Vision API**：對於掃描型 PDF 或圖片型文件，自動切換至 Google Cloud Vision API 進行 OCR
-- **智慧斷點續傳**：檢查 GCS 上的現有結果，避免重複處理
-- **批次非同步處理**：大幅提升效率
-
-### 2. **AI 結構化引擎**
-
-```python
-# 處理單筆獎學金
-response = client.models.generate_content(
-    model='gemini-2.5-flash',
-    contents=[{
-        "role": "user", 
-        "parts": [{"text": f"請根據以下資料生成結構化標籤：\n\n{full_text}"}]
-    }],
-    config=types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,  # 190 行的詳細指令
-        response_mime_type="application/json",
-        response_schema=FINAL_SCHEMA_PYDANTIC,  # Pydantic Schema
-    ),
-)
-
-# 驗證輸出
-tags_object = FinalTagsStructure.model_validate_json(response.text)
-```
-
-**創新點**：
-- **Schema-Guided Generation**：強制 AI 輸出符合 Pydantic 定義的 JSON
-- **Zero-Shot Learning**：無需訓練資料，僅透過 Prompt Engineering 達成高準確度
-- **批次處理**：自動處理 300+ 獎學金，支援斷點續傳
-
-### 3. **彈性篩選邏輯 (944 行)**
-
-```python
-def check_group_match(group: Dict, filters: Dict) -> bool:
-    """
-    核心過濾邏輯：
-    1. 檢查一般條件（學制、年級、學院等）- 包容性邏輯
-    2. 檢查特殊條件（身分、經濟證明等）- 白名單邏輯
-    3. 處理否定條件（排除不符合的使用者）
-    4. 處理「不限/未明定」和「未提及」的語意差異
-    """
-    # ... 944 行的精密邏輯
-```
-
-**設計哲學**：
-- **使用者中心**：「我符合這個條件，請幫我找出我可以申請的獎學金」
-- **包容性優先**：未標註 = （可能）不限制 = 顯示
-- **精準匹配**：特殊身分、經濟證明等採用嚴格匹配，避免誤導
 
 ---
 
@@ -332,24 +115,183 @@ graph TB
     style N fill:#FF4B4B,stroke:#333,stroke-width:2px,color:#fff
 ```
 
-### 🔑 AI 關鍵節點說明
+---
 
-**階段 3: AI 結構化** 是整個系統的核心創新：
 
-1. **輸入**：包含網站公告 + 附件解析文本的 `full_text_for_llm`（最長可達 20,000+ 字元）
-2. **處理**：
-   - Gemini 2.5 Flash 根據 190 行的 System Prompt 進行深度解析
-   - 識別單筆獎學金中的多個申請組別（如「清寒組」、「優秀組」）
-   - 將每個條件歸類到 19 個標籤類別
-   - **標準化條件值**：將原始文字（`tag_value`）映射為標準化值（`standardized_value`）
-     - 例如：「家境清寒」→ 根據上下文映射為特定的官方證明文件，如「低收入戶證明」或「村里長提供之清寒證明」
-     - 例如：「不含延畢生」→ 映射為「在學生」（處理否定邏輯）
-   - 提取數值資訊（金額、名額、GPA）並標準化
-   - 處理否定邏輯與隱含推論
-3. **輸出**：符合 Pydantic Schema 的結構化 JSON，包含：
-   - `groups`: 各申請組別的條件列表
-   - `common_tags`: 適用於所有組別的通用條件
-   - 每個標籤包含：`tag_category`, `condition_type`, `tag_value`, `standardized_value`, `numerical`
+## 📂 專案結構
+
+```
+new_scholarship/
+├── README.md                           # 專案主要說明文件
+├── requirements.txt                    # Python 套件依賴
+├── app/                                # 前端應用程式
+│   ├── app.py                          # Streamlit 主程式
+│   ├── filters.py                      # 彈性篩選邏輯
+│   ├── ui_components.py                # UI 元件（Tooltip、Grid 等）
+│   ├── data_loader.py                  # 資料載入器
+│   ├── constants.py                    # 常數定義（篩選選項、匯率等）
+│   ├── utils.py                        # 工具函數
+│   └── styles.css                      # 自訂樣式
+│
+├── scripts/                            # 資料處理腳本
+│   ├── get_data/                       # 階段 1-4：資料獲取與解析
+│   │   ├── scrape_scholarships.py      # 步驟 1：爬取獎學金列表
+│   │   ├── download_attachments.py     # 步驟 2：下載官網提供之附件
+│   │   ├── document_parsing_and_OCR_staging.py  # 步驟 3：本地文件解析 & 標註需 OCR 之文件
+│   │   └── cloud_ocr_processor.py      # 步驟 4：Cloud OCR 處理
+│   │
+│   ├── data_processing/                # 階段 5-6：資料整合
+│   │   ├── merge_scholarships_attachments.py  # 步驟 5：合併附件與元數據
+│   │   ├── create_full_text_for_llm.py        # 步驟 6：創建 LLM 輸入文本
+│   │   └── merge_tags_with_metadata.py        # 步驟 8：最終合併
+│   │
+│   └── data_analysis/                  # 階段 7：AI 標籤處理
+│       └── tag_processor_batch.py      # 步驟 7：AI 批次標籤處理（Gemini 2.5 Flash）
+│
+├── data/                               # 資料儲存（分階段處理）
+│   ├── raw/                            # 原始資料（爬蟲結果 + 下載的附件）
+│   ├── processed/                      # 處理後資料（解析文本 + OCR 結果）
+│   ├── analysis/                       # AI 分析結果（300 個 JSON 檔案）
+│   └── merged/                         # 最終整合資料
+│       └── scholarships_merged_300.json  # 完整的 300 筆獎學金資料
+│
+└── docs/                               # 詳細文件
+    ├── PROPOSAL.md                     # 專題提案文件
+    └── SCRAPER_USAGE.md                # 爬蟲詳細使用說明
+```
+
+---
+
+## 🚀 技術亮點
+
+### 1. **資料處理管線（Data Pipeline）**
+
+```mermaid
+graph LR
+    A[原始附件<br/>PDF/Word/PPT] --> B{本地解析}
+    B -->|成功| C[提取文字]
+    B -->|失敗/圖片型PDF/PPT| D[標記 OCR_REQUIRED]
+    D --> E[上傳至 GCS]
+    E --> F[Cloud Vision API<br/>批次 OCR]
+    F --> G[下載結果]
+    G --> C
+    C --> H[合併為 full_text_for_llm]
+```
+
+**技術細節**：
+- **本地解析器**：
+  - `pdfplumber`：處理文字型 PDF（速度快、免費）
+  - `python-docx`：處理 Word 文件 (DOCX)
+  - `odfpy`：處理 OpenDocument 文件 (ODT)
+  - `python-pptx`：處理 PowerPoint 文件 (PPT/PPTX)
+- **Cloud Vision API**：對於掃描型 PDF 或圖片型文件，切換至 Google Cloud Vision API 進行 OCR
+- **智慧斷點續傳**：檢查 GCS 上的現有結果，避免重複處理
+- **批次非同步處理**：大幅提升效率
+
+### 2. **AI 在專案中的關鍵角色**
+
+本專案的核心創新在於使用 **Gemini 2.5 Flash** 進行**大規模非結構化文本的結構化處理**：
+
+#### 1. **定義 19 維度標籤系統**
+人機合作，和 Gemini 一起討論出此 19 維度標籤系統。
+
+```python
+CATEGORIES = Literal[
+    "學制", "年級", "學籍狀態", "學院", 
+    "國籍身分", "設籍地", "就讀地", 
+    "特殊身份", "家庭境遇", "經濟相關證明", 
+    "核心學業要求", "操行/品德", "特殊能力/專長",
+    "補助/獎學金排斥", "領獎學金後的義務", 
+    "獎助金額", "獎助名額", "應繳文件",
+    "其他（用於無法歸類的特殊要求）"
+]
+```
+
+#### 2. **190 行 System Prompt 推理邏輯**
+本專案不只是做摘要，而是賦予 AI 以下深度推理能力：
+
+- **識別組別結構**：辨識單筆獎學金中的多個申請組別（如「清寒組」、「優秀組」）
+- **組別歸屬判斷**：區分通用條件（`common_tags`）與組別特有條件（`requirements`）
+- **精準分類**：將每個條件準確歸類到 19 個標籤類別之一
+- **標準化映射**：將原始文字（`tag_value`）映射到預定義的標準選項清單（`standardized_value`）
+  - 例如：「家境清寒」→ 根據上下文或應繳文件推論為「低收入戶證明」或「村里長提供之清寒證明」等
+- **處理否定邏輯**：將排除條件轉換為符合資格的身分
+  - 例如：「不含延畢生」→ 映射為「在學生」
+- **隱含條件推論**：根據上下文推論未明確標註的條件
+  - 例如：提及「戶籍」→ 推論為「本國籍」
+  - 例如：「臺灣地區」→ 推論設籍地為「不限」
+- **複合條件拆分**：將「A 或 B」拆成兩個獨立標籤
+  - 例如：「低收入戶或清寒證明」→ 拆成「低收入戶證明」+「村里長提供之清寒證明」
+- **數值結構化**：提取並標準化金額、名額、GPA、排名等數值資訊
+- **證明文件優先級提升**：將具備「證明資格」功能的應繳文件，優先歸類為對應的資格類別
+
+#### 3. **Pydantic Schema 強制驗證**
+```python
+class SubTag(BaseModel):
+    tag_category: CATEGORIES
+    condition_type: Literal["限於", "包含", "屬性"]
+    tag_value: str  # 原始文字
+    standardized_value: Optional[str]  # 標準化值
+    numerical: Optional[NumericalAttributes]  # 數值資料
+```
+
+透過 Pydantic 定義嚴格的輸出 Schema，確保 AI 生成的 JSON 符合前端需求，降低 LLM 輸出不穩定（Hallucination）的開發痛點。
+
+#### 4. **彈性篩選邏輯 (944 行)**
+篩選邏輯並非由開發者單獨撰寫，而是透過與 AI 的深度對話（Prompt Engineering & Feedback Loop） 共同設計而成：
+
+```python
+def check_group_match(group: Dict, filters: Dict) -> bool:
+    """
+    核心過濾邏輯：
+    1. 檢查一般條件（學制、年級、學院等）- 包容性邏輯
+    2. 檢查特殊條件（身分、經濟證明等）- 白名單邏輯
+    3. 處理否定條件（排除不符合的使用者）
+    4. 處理「不限/未明定」和「未提及」的語意差異
+    """
+    # ... 944 行的精密邏輯
+```
+
+**設計哲學**：
+- **使用者中心**：「我符合這個條件，請幫我找出我可以申請的獎學金」
+- **包容性優先**：獎學金未標註/未提及 = （可能）不限制 = 顯示給使用者
+- **精準匹配**：特殊身分、經濟證明等採用嚴格匹配，避免誤導
+
+---
+
+## ✨ 核心功能
+
+### 1. **智慧篩選系統**
+
+#### 📋 篩選邏輯
+- **同類別內（OR 邏輯）**：選「大學 + 碩士」→ 顯示兩者皆可申請的獎學金
+- **跨類別間（AND 邏輯）**：選「工學院 + 一年級」→ 只顯示同時符合兩者的獎學金
+- **包容性設計**：未標註 = 不限制 = 顯示給使用者
+
+#### 🎯 特殊處理
+
+**「不限/未明定」vs「未提及」的差異：**
+- **「不限」**：獎學金**明確標註**「不限制」該條件（如「國籍身分：不限」）
+  - 選擇此選項 = 包含確定沒有限制的獎學金
+- **「未明定/未提及」**：獎學金公告中**完全沒有提到**該條件
+  - 選擇此選項 = 包含可能有隱含限制但未明確標註的獎學金
+  - ⚠️ **建議**：申請前務必查看官方公告，確認是否有隱含限制
+
+### 2. **原始資訊追溯**
+
+- 將滑鼠移到帶有 <span style="border-bottom: 2px dotted #D9B91A;">點點底線</span> 的文字上
+- 即可查看 AI 處理前的原始獎學金內容
+- 確保資訊透明度與可信度
+
+### 3. **多維度排序**
+
+- **按金額排序**：優先顯示高額獎學金
+- **按截止日期排序**：避免錯過申請時間
+
+### 4. **關鍵字搜尋**
+
+- 支援在獎學金名稱、資格條件中搜尋
+- 不區分大小寫，快速定位目標
 
 ---
 
@@ -380,84 +322,6 @@ graph TB
 - 使用者可透過 **Hover 查看原始資訊** 功能，確認 AI 處理結果
 - 亦可透過 **回報錯誤** 功能，向網站管理者反映錯誤資訊
 - 申請前務必點擊「官方公告」連結，確認完整資格條件
-
----
-
-## 🛠️ 安裝與使用
-
-### 前置需求
-
-- Python 3.8+
-- Google Cloud Platform 帳號（用於 Vision API 和 Vertex AI）
-- Playwright 瀏覽器驅動
-
-### 安裝步驟
-
-1. **Clone 專案**
-```bash
-git clone https://github.com/yourusername/ntu-scholarship-finder.git
-cd ntu-scholarship-finder
-```
-
-2. **建立虛擬環境**
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-```
-
-3. **安裝相依套件**
-```bash
-pip install -r requirements.txt
-playwright install chromium
-```
-
-4. **設定 Google Cloud 憑證**
-```bash
-# 設定環境變數
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
-export GCP_PROJECT_ID="your-project-id"
-export GCP_REGION="us-central1"
-```
-
-### 執行應用程式
-
-```bash
-streamlit run app/app.py
-```
-
-應用程式將在 `http://localhost:8501` 啟動。
-
-### 資料處理流程（可選）
-
-如果您想要重新爬取和處理資料：
-
-```bash
-# 1. 爬取獎學金列表
-python scripts/get_data/scrape_scholarships.py --max-pages 20
-
-# 💡 詳細的爬蟲使用說明（參數、錯誤處理、斷點續爬等），請參考 docs/SCRAPER_USAGE.md
-
-# 2. 下載附件
-python scripts/get_data/download_attachments.py
-
-# 3. 本地文件解析
-python scripts/get_data/document_parsing_and_OCR_staging.py
-
-# 4. Cloud OCR 處理（需要 GCP 憑證）
-python scripts/get_data/cloud_ocr_processor.py
-
-# 5. 合併附件與元數據
-python scripts/data_processing/merge_scholarships_attachments.py
-
-# 6. 創建 LLM 輸入文本
-python scripts/data_processing/create_full_text_for_llm.py
-
-# 7. AI 批次標籤處理
-python scripts/data_analysis/tag_processor_batch.py
-
-# 8. 最終合併
-python scripts/data_processing/merge_tags_with_metadata.py
-```
 
 ---
 
